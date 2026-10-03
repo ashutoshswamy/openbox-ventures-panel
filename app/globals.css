@@ -1,26 +1,189 @@
 @import "tailwindcss";
 
+/* Theme = data-theme on <html> ("light" | "dark"), set before paint by the script in app/layout.tsx. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* OpenBox palette: zinc monochrome, ink primary, color only for status */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --line: #e4e4e7;
+  --text: #18181b;
+  --muted: #5f5f69;
+  --ink: #18181b;
+  --ink-2: #27272a;
+  --ink-text: #fafafa;
+  --primary: #18181b;
+  --primary-hover: #3f3f46;
+  --primary-soft: #f0f0f2;
+  --primary-fg: #fafafa;
+  --amber: #b45309;
+  --amber-soft: #fef3e2;
+  --red: #c2352b;
+  --red-soft: #fdecea;
+  --green: #15803d;
+  --green-soft: #e7f6ec;
+  --blue: #2c5fd4;
+  --blue-soft: #eaf0fd;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0b0d;
+    --surface: #131316;
+    --surface-2: #1c1c20;
+    --line: #2a2a2f;
+    --text: #ededef;
+    --muted: #a1a1aa;
+    --ink: #ededef;
+    --ink-2: #d4d4d8;
+    --ink-text: #131316;
+    --primary: #ededef;
+    --primary-hover: #d4d4d8;
+    --primary-soft: #232328;
+    --primary-fg: #131316;
+    --amber: #f2a93b;
+    --amber-soft: #33240f;
+    --red: #f07167;
+    --red-soft: #3a1a18;
+    --green: #4ccf7e;
+    --green-soft: #12301e;
+    --blue: #7ea3ff;
+    --blue-soft: #18233f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-text: var(--ink-text);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-fg: var(--primary-fg);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--primary-soft);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium whitespace-nowrap text-text shadow-[0_1px_1px_rgb(24_24_27/0.04)] transition-[background-color,transform,opacity] hover:bg-surface-2 active:scale-[0.98] disabled:cursor-default disabled:opacity-50 disabled:active:scale-100;
+  }
+  .btn svg { @apply size-4 shrink-0; }
+  .btn-primary {
+    @apply border-transparent bg-primary text-primary-fg hover:bg-primary-hover;
+  }
+  .btn-danger {
+    @apply text-red hover:bg-red-soft;
+  }
+  .btn-ghost {
+    @apply border-transparent bg-transparent shadow-none;
+  }
+  .btn-icon {
+    @apply w-9 px-0;
+  }
+  .input {
+    @apply h-9 w-full rounded-lg border border-line bg-surface px-3 text-sm text-text transition-colors placeholder:text-muted focus:border-text/40 focus:ring-3 focus:ring-text/10 focus:outline-none;
+  }
+  textarea.input, select.input[multiple] {
+    @apply block h-auto py-2;
+  }
+  .field {
+    @apply flex flex-col gap-2 text-[13px] font-medium text-text;
+  }
+  .check {
+    @apply flex items-center gap-2 text-sm text-text;
+  }
+  .check input { @apply size-4 accent-primary; }
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_2px_rgb(24_24_27/0.03)];
+  }
+  .card-link {
+    @apply transition hover:-translate-y-px hover:border-text/20 hover:shadow-[0_8px_24px_-12px_rgb(24_24_27/0.18)];
+  }
+  .table {
+    @apply w-full text-left text-sm;
+  }
+  .table th {
+    @apply border-b border-line px-3 pb-2.5 text-xs font-medium whitespace-nowrap text-muted;
+  }
+  .table td {
+    @apply border-b border-line/70 px-3 py-3 align-middle;
+  }
+  .table tbody tr { @apply transition-colors hover:bg-surface-2/60; }
+  .table tbody tr:last-child td { @apply border-b-0; }
+  .h1 {
+    @apply text-[28px] leading-tight font-semibold tracking-[-0.025em];
+  }
+  .h2 {
+    @apply mb-4 flex items-center gap-2 text-[15px] font-semibold tracking-tight;
+  }
+  .h2 svg { @apply size-4 text-muted; }
+  .eyebrow {
+    @apply text-sm font-medium text-muted;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-muted;
+  }
+  .badge svg { @apply size-3; }
+  .badge-green { @apply bg-green-soft text-green; }
+  .badge-amber { @apply bg-amber-soft text-amber; }
+  .badge-red { @apply bg-red-soft text-red; }
+  .badge-blue { @apply bg-blue-soft text-blue; }
+  .badge-teal { @apply bg-primary-soft text-text; }
+  .error {
+    @apply col-span-full flex basis-full items-center gap-1.5 text-sm text-red;
+  }
+  .empty {
+    @apply flex flex-col items-center gap-2 py-8 text-center text-sm text-muted;
+  }
+  .empty svg { @apply size-8 text-muted/60; }
+  details > summary { @apply list-none; }
+  details > summary::-webkit-details-marker { display: none; }
+}
+
+/* Phones/tablets: 16px inputs (iOS Safari zooms into smaller ones) and roomier touch targets. */
+@media (pointer: coarse) {
+  .input { font-size: 16px; }
+  .btn, .input:not(textarea):not([multiple]) { min-height: 2.75rem; }
+  .btn-icon { min-width: 2.75rem; }
 }
