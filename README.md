@@ -18,6 +18,7 @@ Internal app: attendance, leave, chat, video meetings. See `PLAN.md`.
 3. **Supabase**
    - Authentication → Sign In / Providers → Third-party auth → add **Clerk**, paste domain.
    - SQL editor: run `supabase/schema.sql` (tables, RLS, functions, private buckets `leave-docs` + `attachments`).
+   - Then run each file in `supabase/migrations/` in filename order.
    - Start over: run `supabase/reset.sql` (**deletes all app data**), then `schema.sql` again.
 4. Create admins (Clerk user + Supabase row, linked):
    ```bash

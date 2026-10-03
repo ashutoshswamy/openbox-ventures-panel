@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Hash, Megaphone, SquarePen, Users } from "lucide-react";
 import { db } from "@/lib/supabase";
 import { Avatar } from "@/components/avatar";
-import { ChannelLink, ChatSidebar, LiveRefresh } from "@/components/live-refresh";
+import { ChannelLink, ChatSidebar } from "@/components/live-refresh";
 
 type Row = { id: string; type: "dm" | "group" | "department"; name: string | null; unread: number; announcements: boolean; avatar_url: string | null };
 
@@ -36,7 +36,6 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
 
   return (
     <div className="card flex h-[calc(100dvh-10rem)] min-h-96 overflow-hidden p-0 md:h-[calc(100dvh-12rem)] lg:h-[calc(100dvh-5rem)]">
-      <LiveRefresh />
       <ChatSidebar>
         <div className="flex h-16 shrink-0 items-center justify-between px-4">
           <h1 className="text-lg font-semibold tracking-tight">Chat</h1>

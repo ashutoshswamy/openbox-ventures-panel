@@ -3,28 +3,36 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSelectedLayoutSegment } from "next/navigation";
-import { useSession } from "@clerk/nextjs";
+import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
 
-// Re-renders server components when a message lands in any channel the user can read (RLS-filtered).
-// ponytail: full refresh per message, fine for a company-sized team; append-in-place if chat gets busy.
+// Re-renders server components when any published table changes in a row the user can read (RLS-filtered),
+// and when the tab comes back into view (catches events missed while asleep/offline).
+// ponytail: full refresh per change (debounced), fine for a company-sized team; append-in-place if chat gets busy.
 export function LiveRefresh() {
-  const { session } = useSession();
+  const { isSignedIn, getToken } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!session) return;
+    if (!isSignedIn) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      clearTimeout(t);
+      t = setTimeout(() => router.refresh(), 300); // bulk inserts (announcements) → one refresh
+    };
+    const onVisible = () => document.visibilityState === "visible" && refresh();
+
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, {
-      accessToken: () => session.getToken(),
+      accessToken: () => getToken(),
     });
-    const ch = sb
-      .channel("messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => router.refresh())
-      .subscribe();
+    const ch = sb.channel("live").on("postgres_changes", { event: "*", schema: "public" }, refresh).subscribe();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
+      clearTimeout(t);
+      document.removeEventListener("visibilitychange", onVisible);
       sb.removeChannel(ch);
     };
-  }, [session, router]);
+  }, [isSignedIn, getToken, router]);
 
   return null;
 }
