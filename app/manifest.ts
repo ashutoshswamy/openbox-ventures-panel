@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 // Installable on phones ("Add to Home Screen").
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "OpenBox Ventures Portal",
-    short_name: "OpenBox",
-    description: "Attendance, leave, chat and meetings for the OpenBox Ventures LLP team.",
+    name: "Open Box Ventures LLP Portal",
+    short_name: "Open Box",
+    description: "Attendance, leave, chat and meetings for the Open Box Ventures LLP team.",
     start_url: "/",
     display: "standalone",
     background_color: "#fafafa",

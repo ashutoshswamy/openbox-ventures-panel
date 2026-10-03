@@ -45,7 +45,7 @@ export default async function Profile() {
         <div className="flex items-center justify-between gap-4">
           <span className="flex min-w-0 items-center gap-2.5 font-semibold tracking-tight">
             <Logo size={36} />
-            <span className="truncate">OpenBox Ventures LLP</span>
+            <span className="truncate">Open Box Ventures LLP</span>
           </span>
           <ThemeToggle className="lg:hidden" />
         </div>

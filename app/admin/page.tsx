@@ -44,7 +44,7 @@ export default async function AdminHome() {
   return (
     <>
       <PageHeader
-        title={me.role === "admin" ? "Today across OpenBox Ventures LLP" : `Today at ${offices?.[0]?.name ?? "your office"}`}
+        title={me.role === "admin" ? "Today across Open Box Ventures LLP" : `Today at ${offices?.[0]?.name ?? "your office"}`}
         sub={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       />
 

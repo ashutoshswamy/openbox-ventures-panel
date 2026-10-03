@@ -11,7 +11,7 @@ function Logo({ panel }: { panel: string }) {
     <div className="flex min-w-0 items-center gap-2.5">
       <Mark size={36} />
       <div className="min-w-0 leading-tight">
-        <div className="truncate text-[15px] font-semibold tracking-tight lg:whitespace-normal">OpenBox Ventures LLP</div>
+        <div className="truncate text-[15px] font-semibold tracking-tight lg:whitespace-normal">Open Box Ventures LLP</div>
         <div className="text-xs text-muted">{panel}</div>
       </div>
     </div>

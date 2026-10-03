@@ -1,4 +1,4 @@
-# OpenBox Ventures LLP - Panel
+# Open Box Ventures LLP - Panel
 
 Internal app: attendance, leave, chat, video meetings. See `PLAN.md`.
 

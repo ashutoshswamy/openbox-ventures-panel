@@ -1,4 +1,4 @@
-# Openbox Ventures Panel - Plan
+# Open Box Ventures LLP Panel - Plan
 
 Centralized internal app: attendance, leave, chat, video calls, org structure (offices, departments).
 Two panels in one Next.js app: `/` employee, `/admin` admin.

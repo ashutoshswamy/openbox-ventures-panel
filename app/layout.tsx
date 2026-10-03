@@ -10,17 +10,17 @@ const dmSans = DM_Sans({
   axes: ["opsz"],
 });
 
-const description = "Attendance, leave, chat and meetings for the OpenBox Ventures LLP team.";
+const description = "Attendance, leave, chat and meetings for the Open Box Ventures LLP team.";
 
 // Default: noindex (everything is behind login). /sign-in opts back in. Share image: public/og-image.jpg (SHARE in lib/util.ts).
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: "OpenBox Ventures Portal", template: "%s | OpenBox Ventures" },
+  title: { default: "Open Box Ventures LLP Portal", template: "%s | Open Box Ventures LLP" },
   description,
-  applicationName: "OpenBox Ventures Portal",
+  applicationName: "Open Box Ventures LLP Portal",
   robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
-  openGraph: { ...SHARE.openGraph, title: "OpenBox Ventures Portal", description },
-  twitter: { ...SHARE.twitter, title: "OpenBox Ventures Portal", description },
+  openGraph: { ...SHARE.openGraph, title: "Open Box Ventures LLP Portal", description },
+  twitter: { ...SHARE.twitter, title: "Open Box Ventures LLP Portal", description },
   formatDetection: { telephone: false, email: false, address: false },
 };
 

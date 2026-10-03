@@ -3,7 +3,7 @@
 /* Theme = data-theme on <html> ("light" | "dark"), set before paint by the script in app/layout.tsx. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* OpenBox palette: zinc monochrome, ink primary, color only for status */
+/* Open Box Ventures LLP palette: zinc monochrome, ink primary, color only for status */
 :root {
   color-scheme: light;
   --bg: #fafafa;

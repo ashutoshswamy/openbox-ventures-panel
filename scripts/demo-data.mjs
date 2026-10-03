@@ -260,7 +260,7 @@ async function seed() {
 
   // [channel, sender, body, hours ago]
   const convo = [
-    [announcements, "admin", "Welcome to the new OpenBox panel! Attendance, leave and chat now live in one place.", 120],
+    [announcements, "admin", "Welcome to the new Open Box Ventures LLP panel! Attendance, leave and chat now live in one place.", 120],
     [announcements, "admin", "Reminder: submit your leave plans for the festive season by the end of next week.", 26],
     [announcements, "arjun", "Pune team: townhall on Friday at 4 pm in the main conference room.", 6],
     [deptChannel["P:Engineering"], "arjun", "Standup moved to 10:15 today.", 50],

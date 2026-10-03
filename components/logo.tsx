@@ -5,7 +5,7 @@ export function Logo({ size = 36, className = "" }: { size?: number; className?:
   return (
     <Image
       src="/logo.png"
-      alt="OpenBox Ventures LLP"
+      alt="Open Box Ventures LLP"
       width={size}
       height={size}
       priority

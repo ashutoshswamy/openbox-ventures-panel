@@ -3,8 +3,8 @@ import { SignIn } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import { AuthFrame } from "@/components/auth-frame";
 
-const title = "Sign in to the OpenBox Ventures Portal";
-const description = "Sign in to the OpenBox Ventures LLP employee portal for attendance, leave, team chat and video meetings.";
+const title = "Sign in to the Open Box Ventures LLP Portal";
+const description = "Sign in to the Open Box Ventures LLP employee portal for attendance, leave, team chat and video meetings.";
 
 // The one indexable page: what people find when they search for the portal.
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ const jsonLd = JSON.stringify({
   name: title,
   description,
   url: `${SITE_URL}/sign-in`,
-  publisher: { "@type": "Organization", name: "OpenBox Ventures LLP", logo: `${SITE_URL}/logo.png` },
+  publisher: { "@type": "Organization", name: "Open Box Ventures LLP", logo: `${SITE_URL}/logo.png` },
 }).replaceAll("<", "\\u003c");
 
 export default function Page() {

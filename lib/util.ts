@@ -2,9 +2,9 @@ export const DEFAULT_TZ = "Asia/Kolkata";
 // Canonical origin (invite links, metadata). Override with NEXT_PUBLIC_SITE_URL in dev.
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://portal.openboxventures.in";
 // Shared-link preview defaults. Page-level openGraph/twitter replace the parent's, so pages spread these.
-const OG_IMAGE = { url: "/og-image.jpg", width: 1200, height: 630, alt: "OpenBox Ventures Portal: attendance, leave, chat and meetings" };
+const OG_IMAGE = { url: "/og-image.jpg", width: 1200, height: 630, alt: "Open Box Ventures LLP Portal: attendance, leave, chat and meetings" };
 export const SHARE = {
-  openGraph: { type: "website", siteName: "OpenBox Ventures Portal", locale: "en_IN", images: OG_IMAGE },
+  openGraph: { type: "website", siteName: "Open Box Ventures LLP Portal", locale: "en_IN", images: OG_IMAGE },
   twitter: { card: "summary_large_image", images: OG_IMAGE },
 } as const;
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
