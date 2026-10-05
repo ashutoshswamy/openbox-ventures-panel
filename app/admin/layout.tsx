@@ -9,6 +9,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
 
   const links: NavLink[] = [
     ["/admin", "Overview", "overview"],
+    ["/admin/todos", "To-do", "todos"],
     ["/admin/employees", "Employees", "employees"],
     ...(admin ? ([["/admin/offices", "Offices", "offices"], ["/admin/departments", "Departments", "departments"]] as NavLink[]) : []),
     ["/admin/attendance", "Attendance", "attendance"],
@@ -19,10 +20,10 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     const { count } = await db().from("issues").select("id", { count: "exact", head: true }).eq("status", "open");
     links.push(["/admin/issues", "Issues", "issues", count ?? 0]);
   }
-  if (!admin) links.push(["/", "My workspace", "switch"]);
+  const switchTo = admin ? undefined : { href: "/", label: "My workspace" };
 
   return (
-    <Shell panel={admin ? "Admin" : "Manager"} links={links} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
+    <Shell panel={admin ? "Admin" : me.role === "hr" ? "HR" : "Manager"} links={links} switchTo={switchTo} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
       {children}
     </Shell>
   );

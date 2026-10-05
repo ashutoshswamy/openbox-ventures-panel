@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { adminDb } from "./supabase";
 
-export type Role = "employee" | "manager" | "admin";
+export type Role = "employee" | "manager" | "hr" | "admin";
 export type Me = {
   id: string;
   email: string;

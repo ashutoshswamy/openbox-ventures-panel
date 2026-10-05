@@ -28,6 +28,7 @@ function Fields({ e, r, offices, depts }: { e?: Emp; r?: Role | null; offices: O
             <option value="">Not assigned (no access)</option>
             <option value="employee">Employee</option>
             <option value="manager">Manager (office head)</option>
+            <option value="hr">HR (office)</option>
             <option value="admin">Admin</option>
           </select>
         </label>

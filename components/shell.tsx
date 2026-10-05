@@ -1,8 +1,9 @@
-import { SignOutButton, UserButton } from "@clerk/nextjs";
+import { SignOutButton } from "@clerk/nextjs";
 import { LogOut, ShieldOff } from "lucide-react";
 import { Logo as Mark } from "./logo";
 import { Nav, type NavLink } from "./nav";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu, type PanelSwitch } from "./user-menu";
 import { AvatarSync } from "./avatar-sync";
 import { LiveRefresh } from "./live-refresh";
 
@@ -22,10 +23,12 @@ export function Shell({
   panel,
   links,
   user,
+  switchTo,
   children,
 }: {
   panel: string;
   links: NavLink[];
+  switchTo?: PanelSwitch;
   user: { name: string; role: string; avatar: string | null };
   children: React.ReactNode;
 }) {
@@ -37,22 +40,21 @@ export function Shell({
         <div className="flex h-full flex-col gap-5 lg:p-3">
           <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:px-2 lg:pt-2">
             <Logo panel={panel} />
-            <div className="flex shrink-0 items-center gap-2 lg:hidden"><ThemeToggle /><UserButton /></div>
+            <div className="flex shrink-0 items-center gap-2 lg:hidden"><ThemeToggle /><UserMenu switchTo={switchTo} /></div>
           </div>
           <Nav links={links} />
-          <div className="mt-auto hidden flex-col gap-3 lg:flex">
-          <ThemeToggle className="self-start" />
-          <div className="flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5">
-            <UserButton />
+          <div className="mt-auto hidden items-center gap-3 rounded-xl border border-line bg-surface p-2.5 lg:flex">
+            <UserMenu switchTo={switchTo} />
             <div className="min-w-0 leading-tight">
               <div className="truncate text-sm font-medium">{user.name}</div>
-              <div className="text-xs text-muted capitalize">{user.role}</div>
+              <div className="text-xs text-muted capitalize">{user.role === "hr" ? "HR" : user.role}</div>
             </div>
-          </div>
           </div>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10">
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10 lg:pt-4">
+        {/* own row, not absolute: would collide with PageHeader actions on the right */}
+        <div className="mb-4 hidden justify-end lg:flex"><ThemeToggle /></div>
         <div className="rise mx-auto max-w-6xl">{children}</div>
       </main>
     </div>

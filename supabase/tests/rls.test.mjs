@@ -17,7 +17,11 @@ await db.exec(`
   grant select on auth._claims to authenticated, anon;
   alter default privileges in schema public grant all on tables to authenticated, anon;`);
 // reset → schema → reset → schema: both scripts must run cleanly on a used DB
-const schema = fs.readFileSync("supabase/schema.sql", "utf8");
+// schema.sql + migrations in filename order (same as README setup)
+const schema = [
+  "supabase/schema.sql",
+  ...fs.readdirSync("supabase/migrations").sort().map((f) => `supabase/migrations/${f}`),
+].map((f) => fs.readFileSync(f, "utf8")).join("\n");
 const reset = fs.readFileSync("supabase/reset.sql", "utf8");
 await db.exec(schema);
 await db.exec(reset);
@@ -150,6 +154,24 @@ assert.equal(await as("u_mgr", "select count(*) from issues"), "1", "managers do
 assert.equal(await as("u_admin", "select count(*) from issues"), "2");
 assert.equal(await as("u_e1", "update issues set status = 'resolved' returning status"), "", "reporter can't resolve");
 assert.equal(await as("u_admin", "update issues set status = 'resolved', admin_note = 'fixed' returning status"), "resolved,resolved");
+
+// ── todos ──
+const todo = (sub, owner, assigned = false) =>
+  as(sub, `insert into todos(owner_id, assigned_by, title) select o.id, ${assigned ? "(select id from me())" : "null"}, 't'
+    from employees o where o.email = '${owner}' returning title`);
+assert.equal(await todo("u_e1", "e1@x.com"), "t", "own personal todo");
+assert.equal(await todo("u_e1", "e2@x.com"), "ERR", "no personal todo on someone else's list");
+assert.equal(await todo("u_e1", "e2@x.com", true), "ERR", "employees can't assign");
+assert.equal(await todo("u_mgr", "e1@x.com", true), "t", "manager assigns in own office");
+assert.equal(await todo("u_mgr", "e2@x.com", true), "ERR", "not to other offices");
+assert.equal(await todo("u_admin", "e2@x.com", true), "t", "admin assigns anyone");
+assert.equal(await as("u_e1", "select count(*) from todos"), "2");
+assert.equal(await as("u_mgr", "select count(*) from todos"), "1", "assigner sees what they assigned");
+assert.equal(await as("u_e2", "select count(*) from todos"), "1");
+assert.equal(await as("u_e1", "update todos set done_at = now() where assigned_by is not null returning title"), "t", "assignee can finish");
+assert.equal(await as("u_e1", "delete from todos where assigned_by is not null returning title"), "", "assignee can't delete assigned");
+assert.equal(await as("u_e1", "update todos set owner_id = owner_id returning title"), "ERR", "can't move todos");
+assert.equal(await as("u_mgr", "delete from todos returning title"), "t", "assigner can withdraw");
 
 // ── admins aren't employees ──
 assert.match(await err("u_admin", "select check_in('wfh')"), /Admins don't use attendance/);

@@ -7,6 +7,7 @@ export default async function EmployeeLayout({ children }: LayoutProps<"/">) {
 
   const links: NavLink[] = [
     ["/", "Dashboard", "dashboard"],
+    ["/todos", "To-do", "todos"],
     ["/attendance", "Attendance", "attendance"],
     ["/leave", "Leave", "leave"],
     ["/chat", "Chat", "chat"],
@@ -14,10 +15,10 @@ export default async function EmployeeLayout({ children }: LayoutProps<"/">) {
     ["/profile", "My details", "profile"],
     ["/support", "Report an issue", "support"],
   ];
-  if (me.role === "manager") links.push(["/admin", "Manager panel", "switch"]);
+  const switchTo = me.role === "manager" || me.role === "hr" ? { href: "/admin", label: me.role === "hr" ? "HR panel" : "Manager panel" } : undefined;
 
   return (
-    <Shell panel="Workspace" links={links} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
+    <Shell panel="Workspace" links={links} switchTo={switchTo} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
       {children}
     </Shell>
   );
