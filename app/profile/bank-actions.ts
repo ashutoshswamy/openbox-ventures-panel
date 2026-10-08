@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireMe } from "@/lib/me";
+import { auth, clerkClient } from "@clerk/nextjs/server";
+import { rateLimit, requireMe } from "@/lib/me";
+import { clearBankUnlock, setBankUnlock } from "@/lib/bank-unlock";
 import { db } from "@/lib/supabase";
 import { str } from "@/lib/util";
 
@@ -37,5 +39,28 @@ export async function allowBankEdit(fd: FormData) {
   await requireMe();
   const { error } = await db().rpc("allow_bank_edit", { p_emp: str(fd, "employee_id") });
   if (error) return error.message;
+  revalidatePath("/", "layout");
+}
+
+// Re-enter the account password to see bank details for 10 minutes.
+export async function unlockBank(fd: FormData) {
+  const me = await requireMe();
+  await rateLimit(`bank-pw:${me.id}`, 5, 300); // ponytail: 5 tries / 5 min on top of Clerk's own lockout
+  const { userId } = await auth();
+  const password = String(fd.get("password") ?? "");
+  if (!userId || !password) return "Enter your password";
+  const clerk = await clerkClient();
+  if (!(await clerk.users.getUser(userId)).passwordEnabled) return "Your account has no password yet. Set one in Manage account → Security, then try again.";
+  try {
+    await clerk.users.verifyPassword({ userId, password });
+  } catch {
+    return "Wrong password";
+  }
+  await setBankUnlock(me.id);
+  revalidatePath("/", "layout");
+}
+
+export async function lockBank() {
+  await clearBankUnlock();
   revalidatePath("/", "layout");
 }

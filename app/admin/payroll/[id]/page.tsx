@@ -6,6 +6,7 @@ import { db } from "@/lib/supabase";
 import { inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
 import { PageHeader } from "@/components/shell";
+import { Secret } from "@/components/secret";
 import { deleteRun, reviewRun, submitRun, updateLine } from "../actions";
 
 export const metadata = { title: "Salary sheet" };
@@ -37,6 +38,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
         {draft && run.review_note && <p className="error">Sent back by admin: {run.review_note}</p>}
 
         <div className="card overflow-x-auto">
+          <Secret block label="salary amounts">
           <table className="table">
             <thead>
               <tr>
@@ -75,6 +77,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
               </tr>
             </tfoot>
           </table>
+          </Secret>
         </div>
 
         <div className="flex flex-wrap gap-2">

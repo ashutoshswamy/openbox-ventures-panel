@@ -6,7 +6,9 @@ import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
 import { breakdown, daysIn, inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
-import { BankForm, maskAcct } from "@/components/bank-form";
+import { type Bank, BankForm, BankLock, BankUnlock, maskAcct } from "@/components/bank-form";
+import { Secret } from "@/components/secret";
+import { bankUnlocked } from "@/lib/bank-unlock";
 import { PageHeader } from "@/components/shell";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
 import { addSalary, createRun } from "./actions";
@@ -21,6 +23,7 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
   const sp = await searchParams;
   const sb = db();
   const today = todayIn();
+  const unlocked = await bankUnlocked(me.id); // bank values only after password re-entry
 
   let emps = sb.from("employees").select("id, full_name, designation, office_id").eq("active", true).or("role.is.null,role.neq.admin").neq("id", me.id).order("full_name");
   if (!admin && me.office_id) emps = emps.eq("office_id", me.office_id);
@@ -29,7 +32,7 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
     sb.from("offices").select("id, name").order("name"),
     emps,
     sb.from("employee_salaries").select("*").order("effective_from"),
-    sb.from("employee_bank").select("*"),
+    sb.from("employee_bank").select<string, Bank & { employee_id: string }>(unlocked ? "*" : "employee_id, employee_can_edit, edit_requested_at"),
   ]);
 
   // calculator (GET form, computed on the server)
@@ -90,15 +93,16 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                           <div className="text-sm text-muted">{p.designation ?? ""}</div>
                         </div>
                         <div className="text-right text-sm tabular-nums">
-                          {cur ? <><div className="font-medium">{inr(Number(cur.annual_ctc))} / yr</div><div className="text-muted">since {fmtDate(cur.effective_from)}</div></> : <span className="text-muted">No salary</span>}
+                          {cur ? <><div className="font-medium"><Secret label="salary">{inr(Number(cur.annual_ctc))}</Secret> / yr</div><div className="text-muted">since {fmtDate(cur.effective_from)}</div></> : <span className="text-muted">No salary</span>}
                         </div>
                         {bank?.edit_requested_at && <span className="badge badge-amber">Bank edit requested</span>}
-                        <div className="w-28 text-sm text-muted tabular-nums">{bank ? maskAcct(bank.account_number) : "No bank details"}</div>
+                        <div className="w-28 text-sm text-muted tabular-nums">{!bank ? "No bank details" : unlocked ? maskAcct(bank.account_number) : "Bank on file"}</div>
                         <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
                       </summary>
                       <div className="mt-4 grid gap-6 lg:grid-cols-2">
                         <div className="space-y-4">
                           {!!hist.length && (
+                            <Secret block label="salary history">
                             <table className="table">
                               <thead><tr><th>Effective</th><th className="text-right">Annual CTC</th><th className="text-right">Change</th><th>Note</th></tr></thead>
                               <tbody>
@@ -116,6 +120,7 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                                 })}
                               </tbody>
                             </table>
+                            </Secret>
                           )}
                           <ActionForm action={addSalary} success="Saved" className="flex flex-wrap items-end gap-2">
                             <input type="hidden" name="employee_id" value={p.id} />
@@ -135,7 +140,8 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                               {bank.edit_requested_at && <span className="text-sm text-muted">Requested {fmtDate(bank.edit_requested_at.slice(0, 10))}</span>}
                             </ActionForm>
                           ))}
-                          <BankForm bank={bank} employeeId={p.id} />
+                          {bank && !unlocked ? <BankUnlock /> : <BankForm bank={bank} employeeId={p.id} />}
+                          {bank && unlocked && <BankLock />}
                         </div>
                       </div>
                     </details>
