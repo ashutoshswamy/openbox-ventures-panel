@@ -15,6 +15,7 @@ export function employeeNav(me: Assigned) {
     ["/chat", "Chat", "chat"],
     ["/directory", "Directory", "directory"],
     ["/org", "Org chart", "org"],
+    ["/payslips", "Payslips", "payroll"],
     ["/profile", "My details", "profile"],
     ["/support", "Report an issue", "support"],
   ];
@@ -44,6 +45,7 @@ export async function adminNav(me: Assigned) {
     links.push(["/admin/chats", "Group chats", "chat"]);
     links.push(["/admin/payroll", "Payroll", "payroll"]);
     links.push(["/admin/issues", "Issues", "issues", issues ?? 0]);
+    links.push(["/admin/audit", "Audit log", "audit"]);
   }
   const switchTo = admin ? undefined : { href: "/", label: "My workspace" };
   return { panel: admin ? "Admin" : me.role === "branch_head" ? "Branch head" : "Manager", links, switchTo };

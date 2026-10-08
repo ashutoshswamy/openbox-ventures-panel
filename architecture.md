@@ -67,6 +67,7 @@ flowchart TD
 | `/leave` | Balances, apply, cancel, add/replace document |
 | `/chat` | DMs, groups, department channels, Announcements |
 | `/directory`, `/org` | Colleagues, org chart |
+| `/payslips` | Own payslips from approved salary sheets; `/payslip/[id]` prints / saves as PDF (also opened by HR/admin from the sheet) |
 | `/profile` | Personal details, bank details, my salary |
 | `/support` | Report an issue to admins |
 
@@ -153,7 +154,7 @@ flowchart LR
 |---|---|
 | `/hr` Overview | Headcount, joiners this month, exits in 30 days, open leave, pending regularizations, today's present / on leave / not in |
 | `/hr/leave` | Final approval, with balance, leave taken this year, manager's note |
-| `/hr/attendance` | Day view + approve/reject regularizations |
+| `/hr/attendance` | Day view + approve/reject regularizations; `/analytics`: monthly rate, late, WFH, absences by day / department / person (also under `/admin/attendance`) |
 | `/hr/payroll` | Salaries, increments, bank details, build & submit salary sheets |
 | `/hr/employees`, `/hr/org` | Office employees (All / Active / Deactivated), org chart |
 | `/hr/todos`, `/hr/announcements` | Assign tasks, post announcements |
@@ -193,7 +194,9 @@ Salary and bank rows are visible to the employee, admin, and HR of the employee'
 
 ## 6. Admin panel (`/admin`, role `admin`)
 
-Everything managers see, org-wide, plus: Offices (geofence, hours, work days) · Departments · Employees (invite, role, code, alias, company mobile, joined/exit date, reports to, deactivate) · Leave policy & holidays (incl. CSV import) · Payroll approval · Issues.
+Everything managers see, org-wide, plus: Offices (geofence, hours, work days) · Departments · Employees (invite, role, code, alias, company mobile, joined/exit date, reports to, deactivate) · Leave policy & holidays (incl. CSV import) · Payroll approval · Issues · Audit log (`/admin/audit`: trigger-written history of employees, salary, bank (values masked), payroll, leave, regularizations, org settings).
+
+Every panel: **Cmd/Ctrl+K search** over the panel's pages, people, own chats and own to-dos (`app/search-actions.ts`, RLS-scoped).
 
 ### Invite → active employee
 

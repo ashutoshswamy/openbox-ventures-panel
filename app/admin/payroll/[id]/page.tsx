@@ -50,7 +50,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
             <tbody className="tabular-nums">
               {rows.map((l) => (
                 <tr key={l.id}>
-                  <td className="font-medium">{l.employee?.full_name}</td>
+                  <td className="font-medium"><Link href={`/payslip/${l.id}`} className="hover:underline" title="Payslip">{l.employee?.full_name}</Link></td>
                   {SUMS.map((k) => <td key={k} className={`text-right ${k === "net" ? "font-semibold" : ""}`}>{inr(Number(l[k]))}{k === "lop_amount" && Number(l.lop_days) > 0 ? <span className="block text-xs text-muted">{Number(l.lop_days)} d</span> : null}</td>)}
                   {draft && (
                     <td className="text-right">

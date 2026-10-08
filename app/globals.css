@@ -260,3 +260,11 @@ button, summary, .btn { user-select: none; }
 
 /* employee form: branch heads have no department */
 form:has([name=role] option[value=branch_head]:checked) .dept { display: none; }
+
+/* Print (payslips): always light, whatever the screen theme */
+@media print {
+  :root, :root[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #fff; --surface: #fff; --surface-2: #f4f4f5; --line: #e4e4e7; --text: #18181b; --muted: #5f5f69;
+  }
+}

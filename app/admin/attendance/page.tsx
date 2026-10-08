@@ -1,7 +1,8 @@
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
-import { Building2, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
+import Link from "next/link";
+import { Building2, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { PageHeader } from "@/components/shell";
@@ -38,7 +39,9 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
   return (
     <>
-    <PageHeader title="Attendance" sub={`${present} present · ${onLeave} on leave · ${(people?.length ?? 0) - present - onLeave} not checked in`} />
+    <PageHeader title="Attendance" sub={`${present} present · ${onLeave} on leave · ${(people?.length ?? 0) - present - onLeave} not checked in`}>
+      <Link href={`${me.role === "hr" ? "/hr" : "/admin"}/attendance/analytics`} className="btn"><ChartColumn /> Analytics</Link>
+    </PageHeader>
     <div className="space-y-6">
       <form className="flex flex-wrap items-center gap-2">
         <input type="date" name="date" defaultValue={date} className="input w-auto" />

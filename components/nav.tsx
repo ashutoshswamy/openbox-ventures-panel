@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, CalendarDays, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, UserRound, Users, Wallet, Workflow,
+  Building2, CalendarDays, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, ScrollText, UserRound, Users, Wallet, Workflow,
 } from "lucide-react";
 
 const icons = {
@@ -24,6 +24,7 @@ const icons = {
   todos: ListTodo,
   payroll: Wallet,
   org: Workflow,
+  audit: ScrollText,
 };
 export type NavIcon = keyof typeof icons;
 export type NavLink = [href: string, label: string, icon: NavIcon, count?: number];

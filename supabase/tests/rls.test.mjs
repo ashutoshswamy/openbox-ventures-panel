@@ -401,6 +401,17 @@ assert.equal(await err("u_hr", `select submit_payroll_run('${runId}')`), "ok");
 assert.equal(await err("u_admin", `select review_payroll_run('${runId}', true)`), "ok");
 assert.match(await err("u_hr", `select delete_payroll_run('${runId}')`), /draft/, "approved = locked");
 assert.equal(await as("u_hr", `delete from payroll_lines returning id`), "ERR", "no direct deletes");
+// payslips: own line + run once approved, nobody else's
+assert.equal(await as("u_e1", "select l.net || '/' || r.month from payroll_lines l join payroll_runs r on r.id = l.run_id"), "46400.00/2026-10-01", "own approved payslip");
+assert.equal(await as("u_e2", "select count(*) from payroll_lines"), "0");
+assert.equal(await as("u_e2", "select count(*) from payroll_runs"), "0");
+
+// audit log: triggers record actor + subject, bank values masked, admin-only read
+assert.equal(await as("u_admin", "select count(*) > 0 from audit_log where table_name = 'payroll_runs' and action = 'update' and new->>'status' = 'approved' and actor_id = (select id from employees where email = 'a@x.com')"), "true");
+assert.equal(await as("u_admin", `select count(*) > 0 from audit_log where table_name = 'employee_salaries' and employee_id = ${e1}`), "true");
+assert.equal(await as("u_admin", "select count(*) from audit_log where table_name = 'employee_bank' and (coalesce(new, '{}') || coalesce(old, '{}'))::text ~ '123456789012|ABCDE1234F'"), "0", "no account numbers in the log");
+assert.equal(await as("u_hr", "select count(*) from audit_log"), "0", "admins only");
+assert.equal(await as("u_admin", "delete from audit_log returning 1"), "ERR", "append-only");
 
 // ── security: exploit attempts must fail ──
 {

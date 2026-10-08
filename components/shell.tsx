@@ -6,6 +6,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { UserMenu, type PanelSwitch } from "./user-menu";
 import { AvatarSync } from "./avatar-sync";
 import { LiveRefresh } from "./live-refresh";
+import { GlobalSearch } from "./search";
 
 function Logo({ panel }: { panel: string }) {
   return (
@@ -42,6 +43,7 @@ export function Shell({
             <Logo panel={panel} />
             <div className="flex shrink-0 items-center gap-2 lg:hidden"><ThemeToggle /><UserMenu switchTo={switchTo} /></div>
           </div>
+          <div className="-mb-3 px-3 lg:mb-0 lg:px-0"><GlobalSearch links={links} /></div>
           <Nav links={links} />
           <div className="mt-auto hidden items-center gap-3 rounded-xl border border-line bg-surface p-2.5 lg:flex">
             <UserMenu switchTo={switchTo} />
