@@ -52,7 +52,6 @@ create table employees (
   exit_date     date check (exit_date >= joined_on),
   employee_code text unique check (employee_code = trim(employee_code) and employee_code <> ''), -- auto OBV001, OBV002… (default below)
   alias_name    text check (length(alias_name) <= 60), -- set by the employee on their profile
-  company_phone text,
   reports_to    uuid references employees on delete set null check (reports_to <> id), -- org chart
   active        boolean not null default true,
   -- copy of Clerk publicMetadata.role, kept in sync by the app; for filtering only (access uses the JWT)

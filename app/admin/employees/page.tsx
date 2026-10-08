@@ -14,7 +14,7 @@ export const metadata = { title: "Employees" };
 type Emp = {
   id: string; email: string; full_name: string; clerk_user_id: string | null; office_id: string | null;
   department_id: string | null; designation: string | null; joined_on: string | null; active: boolean; avatar_url: string | null;
-  employee_code: string | null; alias_name: string | null; company_phone: string | null; exit_date: string | null; reports_to: string | null;
+  employee_code: string | null; alias_name: string | null; exit_date: string | null; reports_to: string | null;
 };
 type Opt = { id: string; name: string; office_id?: string };
 
@@ -52,7 +52,6 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
         </select>
       </label>
       <label className="field">Designation<input name="designation" defaultValue={e?.designation ?? ""} className="input" /></label>
-      <label className="field">Company mobile<input name="company_phone" type="tel" defaultValue={e?.company_phone ?? ""} className="input" /></label>
       {e && people && (
         <label className="field">Reports to
           <select name="reports_to" defaultValue={e.reports_to ?? ""} className="input">
