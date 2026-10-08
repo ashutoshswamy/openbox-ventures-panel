@@ -40,24 +40,26 @@ function Group({ title, rows }: { title: string; rows: Row[] }) {
 // Outside the (employee) group so admins get it too, inside their own panel's shell.
 export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
   const me = await pageMe();
-  const nav = me.role === "admin" ? await adminNav(me) : employeeNav(me);
-  const { data } = await db().rpc("my_channels");
+  const admin = me.role === "admin";
+  const sb = db();
+  // one parallel round trip; admins also load every other group / department / office channel and every DM (read-only)
+  const [nav, { data }, { data: allGroups }, { data: allDms }] = await Promise.all([
+    admin ? adminNav(me) : employeeNav(me),
+    sb.rpc("my_channels"),
+    admin ? sb.from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name") : { data: [] },
+    admin ? sb.from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm") : { data: [] },
+  ]);
   const rows = (data ?? []) as Row[];
-  // admins: every other group / department / office channel, opened read-only
-  const others = me.role === "admin"
-    ? ((await db().from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name")).data ?? [])
-        .filter((c) => !rows.some((r) => r.id === c.id))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any): Row => ({ id: c.id, type: c.type, name: c.name, unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: c.office?.name ?? c.department?.office?.name ?? null }))
-    : [];
-  // admins: every DM between two employees, read-only, named "A & B"
-  const dms = me.role === "admin"
-    ? ((await db().from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm")).data ?? [])
-        .filter((c) => !rows.some((r) => r.id === c.id))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((c: any): Row => ({ id: c.id, type: "dm", name: dmName(c.members), unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: null }))
-        .sort((a, b) => a.name!.localeCompare(b.name!))
-    : [];
+  const others = (allGroups ?? [])
+    .filter((c) => !rows.some((r) => r.id === c.id))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((c: any): Row => ({ id: c.id, type: c.type, name: c.name, unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: c.office?.name ?? c.department?.office?.name ?? null }));
+  // named "A & B"
+  const dms = (allDms ?? [])
+    .filter((c) => !rows.some((r) => r.id === c.id))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((c: any): Row => ({ id: c.id, type: "dm", name: dmName(c.members), unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: null }))
+    .sort((a, b) => a.name!.localeCompare(b.name!));
   // office channel first, then its departments
   const officeRows = rows.filter((r) => r.type === "office" || r.type === "department").sort((a, b) => Number(b.type === "office") - Number(a.type === "office"));
   const offices = [...new Map(officeRows.map((r) => [r.office_id, r.office_name])).entries()];

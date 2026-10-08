@@ -46,14 +46,15 @@ export default async function Profile() {
   const me = await getMe();
   if (!me) redirect("/no-access");
   if (me.role === "admin") redirect("/admin");
-  const { data: p } = await adminDb().from("employee_profiles").select("*").eq("employee_id", me.id).maybeSingle();
   const onboarding = !me.onboarded;
   // own salary + bank (RLS: own rows only). Bank values only after password re-entry.
   const today = todayIn();
-  const unlocked = !onboarding && await bankUnlocked(me.id);
-  const [{ data: sal }, { data: bank }] = onboarding ? [{ data: null }, { data: null }] : await Promise.all([
-    db().from("employee_salaries").select("annual_ctc, effective_from").lte("effective_from", today).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
-    db().from("employee_bank").select<string, Bank>(unlocked ? "*" : "employee_can_edit, edit_requested_at").maybeSingle(),
+  const unlocked = !onboarding && await bankUnlocked(me.id); // cookie check, no network
+  const none = { data: null };
+  const [{ data: p }, { data: sal }, { data: bank }] = await Promise.all([
+    adminDb().from("employee_profiles").select("*").eq("employee_id", me.id).maybeSingle(),
+    onboarding ? none : db().from("employee_salaries").select("annual_ctc, effective_from").lte("effective_from", today).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
+    onboarding ? none : db().from("employee_bank").select<string, Bank>(unlocked ? "*" : "employee_can_edit, edit_requested_at").maybeSingle(),
   ]);
   const pay = sal ? breakdown(Number(sal.annual_ctc), { month: Number(today.slice(5, 7)), daysInMonth: daysIn(Number(today.slice(0, 4)), Number(today.slice(5, 7))) }) : null;
 

@@ -23,14 +23,14 @@ export default async function AdminHome() {
   const { data: offices } = await officesQ;
   const dates = [...new Set(offices?.map((o) => todayIn(o.timezone)) ?? [todayIn()])];
 
-  const [{ data: people }, { data: rows }, { data: leaves }, { count: pending }] = await Promise.all([
+  const [{ data: people }, { data: rows }, { data: leaves }, { count: pending }, stale, { count: openIssues }] = await Promise.all([
     sb.from("employees").select("id, office_id").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin"),
     sb.from("attendance_report").select("employee_id, office_id, date, mode, late").in("date", dates),
     sb.from("leave_requests").select("employee_id, start_date, end_date").eq("status", "approved").lte("start_date", dates.at(-1) ?? todayIn()).gte("end_date", dates[0] ?? todayIn()),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending").neq("employee_id", me.id),
+    pendingCounts(sb, me.id, 24),
+    me.role === "admin" ? sb.from("issues").select("id", { count: "exact", head: true }).eq("status", "open") : { count: 0 },
   ]);
-  const stale = await pendingCounts(sb, me.id, 24);
-  const { count: openIssues } = me.role === "admin" ? await sb.from("issues").select("id", { count: "exact", head: true }).eq("status", "open") : { count: 0 };
 
   const stats = (offices ?? []).map((o) => {
     const today = todayIn(o.timezone);

@@ -24,7 +24,11 @@ export function employeeNav(me: Assigned) {
 
 export async function adminNav(me: Assigned) {
   const admin = me.role === "admin";
-  const pending = await pendingCounts(db(), me.id);
+  const sb = db();
+  const [pending, { count: issues }] = await Promise.all([
+    pendingCounts(sb, me.id),
+    admin ? sb.from("issues").select("id", { count: "exact", head: true }).eq("status", "open") : { count: 0 },
+  ]);
   const links: NavLink[] = [
     ["/admin", "Overview", "overview"],
     ["/admin/todos", "To-do", "todos"],
@@ -39,8 +43,7 @@ export async function adminNav(me: Assigned) {
     links.push(["/chat", "Chat", "chat"]);
     links.push(["/admin/chats", "Group chats", "chat"]);
     links.push(["/admin/payroll", "Payroll", "payroll"]);
-    const { count } = await db().from("issues").select("id", { count: "exact", head: true }).eq("status", "open");
-    links.push(["/admin/issues", "Issues", "issues", count ?? 0]);
+    links.push(["/admin/issues", "Issues", "issues", issues ?? 0]);
   }
   const switchTo = admin ? undefined : { href: "/", label: "My workspace" };
   return { panel: admin ? "Admin" : me.role === "branch_head" ? "Branch head" : "Manager", links, switchTo };
