@@ -42,6 +42,13 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
   const nav = me.role === "admin" ? await adminNav(me) : employeeNav(me);
   const { data } = await db().rpc("my_channels");
   const rows = (data ?? []) as Row[];
+  // admins: every other group / department / office channel, opened read-only
+  const others = me.role === "admin"
+    ? ((await db().from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name")).data ?? [])
+        .filter((c) => !rows.some((r) => r.id === c.id))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any): Row => ({ id: c.id, type: c.type, name: c.name, unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: c.office?.name ?? c.department?.office?.name ?? null }))
+    : [];
   // office channel first, then its departments
   const officeRows = rows.filter((r) => r.type === "office" || r.type === "department").sort((a, b) => Number(b.type === "office") - Number(a.type === "office"));
   const offices = [...new Map(officeRows.map((r) => [r.office_id, r.office_name])).entries()];
@@ -62,6 +69,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
           {offices.map(([id, name]) => <Group key={id} title={name ?? "Office"} rows={officeRows.filter((r) => r.office_id === id)} />)}
           <Group title="Groups" rows={rows.filter((r) => r.type === "group" && !r.announcements)} />
           <Group title="Direct messages" rows={rows.filter((r) => r.type === "dm")} />
+          <Group title="All group chats (view only)" rows={others.map((r) => ({ ...r, name: r.office_name && r.type === "department" ? `${r.office_name} / ${r.name}` : r.name }))} />
           {!rows.length && <p className="px-3 py-6 text-sm text-muted">No conversations yet. Start one from the pencil above.</p>}
         </div>
       </ChatSidebar>

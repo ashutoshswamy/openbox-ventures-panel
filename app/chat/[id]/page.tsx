@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Building2, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
+import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
@@ -70,12 +70,19 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     sb.rpc("my_channels"),
     sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
   ]);
-  const channel = (channels as { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null }[] | null)?.find((c) => c.id === id);
+  type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
+  let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
+  // admins read any group / department / office channel they're not in (RLS: admin_read), without joining it
+  const viewOnly = !channel && me.role === "admin";
+  if (viewOnly) {
+    const { data: c } = await sb.from("channels").select("id, type, name, announcements").eq("id", id).neq("type", "dm").maybeSingle();
+    channel = c ? { ...c, avatar_url: null } : undefined;
+  }
   if (!channel) notFound();
-  await markRead(id);
+  if (!viewOnly) await markRead(id);
   const messages = (data ?? []) as unknown as Msg[];
   const name = channel.name ?? "Unnamed";
-  const liveCall = liveCallOf(messages);
+  const liveCall = viewOnly ? null : liveCallOf(messages);
 
   return (
     <>
@@ -94,7 +101,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
-        {!channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
+        {!viewOnly && !channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
       <ol className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-y-auto px-4 py-4 md:px-6">
@@ -146,7 +153,11 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         {!messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
-      {channel.announcements ? (
+      {viewOnly ? (
+        <p className="flex items-center justify-center gap-2 border-t border-line p-4 text-sm text-muted">
+          <Eye className="size-4" /> Viewing as admin. You aren&apos;t a member, so you can read but not post.
+        </p>
+      ) : channel.announcements ? (
         me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
             <Link href={me.role === "hr" ? "/hr/announcements" : "/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>
