@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Hash, Megaphone, SquarePen, Users } from "lucide-react";
+import { Hash, History, Megaphone, SquarePen, Users } from "lucide-react";
 import { db } from "@/lib/supabase";
 import { Avatar } from "@/components/avatar";
 import { ChannelLink, ChatSidebar } from "@/components/live-refresh";
@@ -39,7 +39,10 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
       <ChatSidebar>
         <div className="flex h-16 shrink-0 items-center justify-between px-4">
           <h1 className="text-lg font-semibold tracking-tight">Chat</h1>
-          <Link href="/chat/new" className="btn btn-icon" title="New conversation" aria-label="New conversation"><SquarePen /></Link>
+          <div className="flex gap-1">
+            <Link href="/chat/calls" className="btn btn-icon" title="Call history" aria-label="Call history"><History /></Link>
+            <Link href="/chat/new" className="btn btn-icon" title="New conversation" aria-label="New conversation"><SquarePen /></Link>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           <Group title="Company" rows={rows.filter((r) => r.announcements)} />

@@ -168,10 +168,30 @@ assert.match(await err("u_mgr", `insert into messages(channel_id, sender_id, bod
 
 // ── no chatting with admins ──
 await db.exec("reset role; update employees set role = 'admin' where email = 'a@x.com'");
-assert.match(await err("u_e1", "select dm_with((select id from employees where email = 'a@x.com'))"), /Admins can't be messaged/);
+const adminId = (await db.query("select id from employees where email = 'a@x.com'")).rows[0].id;
+assert.match(await err("u_e1", `select dm_with('${adminId}')`), /Admins can't be messaged/);
 const grp = await as("u_e1", "insert into channels(name, type, created_by) select 'g', 'group', id from employees where email = 'e1@x.com' returning id");
-assert.match(await err("u_e1", `insert into channel_members(channel_id, employee_id) select '${grp}', id from employees where email = 'a@x.com'`), /row-level security/);
+assert.match(await err("u_e1", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${adminId}')`), /row-level security/);
+
+// ── admins are anonymous: invisible to everyone but admins ──
+for (const u of ["u_e1", "u_mgr", "u_hr"]) assert.equal(await as(u, "select count(*) from employees where role = 'admin'"), "0", `${u} can't see admins`);
+assert.equal(await as("u_admin", "select count(*) from employees where role = 'admin'"), "1");
 assert.equal(await err("u_e1", `insert into channel_members(channel_id, employee_id) select '${grp}', id from employees where email in ('e1@x.com', 'e2@x.com')`), "ok");
+
+// ── calls: members only, functions only ──
+const room = "abcdef123456";
+assert.equal(await err("u_mgr", `select start_call('${grp}', '${room}')`), "Not allowed", "non-member can't start");
+assert.equal(await err("u_e1", `select start_call('${grp}', 'bad')`) === "ok", false, "room format checked");
+assert.equal(await err("u_e1", `select start_call('${grp}', '${room}')`), "ok");
+assert.equal(await err("u_e2", `select call_ping('${room}')`), "ok");
+assert.equal(await err("u_e2", `select call_ping('${room}')`), "ok", "re-ping = heartbeat");
+assert.equal(await as("u_e1", "select count(*) from call_participants"), "2");
+assert.equal(await as("u_mgr", "select count(*) from calls"), "0", "non-members see no calls");
+assert.equal(await err("u_mgr", `select call_ping('${room}')`), "Not allowed");
+assert.match(await err("u_e1", `insert into calls(channel_id, room) values ('${grp}', '000000000000')`), /permission denied/);
+assert.match(await err("u_e1", "update call_participants set last_seen_at = now() + interval '1 day'"), /permission denied/);
+assert.equal(await err("u_e2", `select end_call('${room}')`), "ok");
+assert.equal(await as("u_e1", "select ended_at is not null from calls"), "true");
 
 // ── issues ──
 const report = (sub, extra = "") =>

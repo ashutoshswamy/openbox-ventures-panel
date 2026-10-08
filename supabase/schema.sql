@@ -179,6 +179,27 @@ create table messages (
 );
 create index on messages (channel_id, created_at desc);
 
+-- Video calls (one Jitsi room per call) for the call history. Written only by start_call / call_ping / end_call.
+-- A call is over at ended_at ("End call") or, failing that, once nobody has pinged for a minute.
+create table calls (
+  id         uuid primary key default gen_random_uuid(),
+  channel_id uuid not null references channels on delete cascade,
+  room       text not null unique check (room ~ '^[a-f0-9]{12}$'),
+  started_by uuid references employees on delete set null,
+  started_at timestamptz not null default now(),
+  ended_at   timestamptz
+);
+create index on calls (channel_id, started_at desc);
+
+-- one row per person per call: first join → last heartbeat (sent while their Jitsi tab is open)
+create table call_participants (
+  call_id      uuid not null references calls on delete cascade,
+  employee_id  uuid not null references employees on delete cascade,
+  joined_at    timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  primary key (call_id, employee_id)
+);
+
 -- "Report an issue": employees/managers → admins
 create table issues (
   id          uuid primary key default gen_random_uuid(),
@@ -378,6 +399,8 @@ alter table leave_carry_forward enable row level security;
 alter table channels            enable row level security;
 alter table channel_members     enable row level security;
 alter table messages            enable row level security;
+alter table calls               enable row level security;
+alter table call_participants   enable row level security;
 alter table issues              enable row level security;
 alter table employee_profiles   enable row level security;
 alter table todos               enable row level security;
@@ -399,8 +422,11 @@ create policy admin on holidays    for all    to authenticated using (is_admin()
 create policy read on leave_types  for select to authenticated using ((select id from me()) is not null);
 create policy admin on leave_types for all    to authenticated using (is_admin()) with check (is_admin());
 
--- employees: directory visible to colleagues; managers/HR also see deactivated rows of their office; admin manages
-create policy read on employees  for select to authenticated using ((active and (select id from me()) is not null) or manages(id));
+-- employees: directory visible to colleagues; managers/HR also see deactivated rows of their office; admin manages.
+-- Admin rows are invisible to everyone else (joins to them come back null), so admins stay anonymous in the panel.
+create policy read on employees  for select to authenticated using (
+  role is distinct from 'admin' and ((active and (select id from me()) is not null) or manages(id))
+);
 create policy admin on employees for all    to authenticated using (is_admin()) with check (is_admin());
 
 -- attendance: own + managed; managers/admin fix entries
@@ -426,11 +452,14 @@ create policy open on channels for insert to authenticated
 create policy read on channel_members for select to authenticated using (is_member(channel_id));
 create policy add on channel_members  for insert to authenticated with check (
   (is_admin() or exists (select 1 from channels c where c.id = channel_id and c.type = 'group' and c.created_by = (select id from me())))
-  and coalesce((select e.role from employees e where e.id = employee_id), '') <> 'admin' -- admins aren't chat members
+  and exists (select 1 from employees e where e.id = employee_id and e.role is distinct from 'admin') -- admins aren't chat members (and are invisible to non-admins)
 );
 create policy mark_read on channel_members for update to authenticated
   using (employee_id = (select id from me())) with check (employee_id = (select id from me()));
 create policy read on messages for select to authenticated using (is_member(channel_id));
+create policy read on calls for select to authenticated using (is_member(channel_id));
+create policy read on call_participants for select to authenticated
+  using (exists (select 1 from calls c where c.id = call_id and is_member(c.channel_id)));
 create policy send on messages for insert to authenticated with check (
   is_member(channel_id) and sender_id = (select id from me())
   and (attachment_path is null or attachment_path like (select id from me())::text || '/%') -- own uploads only
@@ -801,6 +830,44 @@ create policy join_implicit on channel_members for insert to authenticated with 
       and (c.announcements or (c.type = 'department' and c.department_id = (select department_id from me()))))
 );
 
+-- ── Calls: the starter is the first participant; heartbeats extend your time in the call ──
+
+create function start_call(ch uuid, p_room text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  my uuid := (select id from me());
+  c uuid;
+begin
+  if my is null or not is_member(ch) or exists (select 1 from channels where id = ch and announcements) then
+    raise exception 'Not allowed';
+  end if;
+  insert into calls (channel_id, room, started_by) values (ch, p_room, my) returning id into c;
+  insert into call_participants (call_id, employee_id) values (c, my);
+end $$;
+
+create function call_ping(p_room text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  my uuid := (select id from me());
+  c calls;
+begin
+  select * into c from calls where room = p_room;
+  if my is null or c.id is null or not is_member(c.channel_id) then raise exception 'Not allowed'; end if;
+  if c.ended_at is not null then return; end if;
+  insert into call_participants (call_id, employee_id) values (c.id, my)
+  on conflict (call_id, employee_id) do update set last_seen_at = now();
+end $$;
+
+create function end_call(p_room text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  c calls;
+begin
+  select * into c from calls where room = p_room;
+  if (select id from me()) is null or c.id is null or not is_member(c.channel_id) then raise exception 'Not allowed'; end if;
+  update calls set ended_at = now() where id = c.id and ended_at is null;
+end $$;
+
 -- find-or-create a DM with another employee
 create function dm_with(other uuid) returns uuid
 language plpgsql security definer set search_path = public as $$
@@ -939,12 +1006,12 @@ begin
   for r in
     select e.id::text as ref, 'birthday' as kind, format('Happy birthday, %s!', e.full_name) as msg
     from employees e join employee_profiles p on p.employee_id = e.id
-    where e.active and reminder_match(p.date_of_birth, day)
+    where e.active and e.role is distinct from 'admin' and reminder_match(p.date_of_birth, day)
     union all
     select e.id::text, 'anniversary',
       format('Congratulations %s on %s year%s at Open Box Ventures LLP!', e.full_name, y, case when y = 1 then '' else 's' end)
     from employees e, lateral (select extract(year from day)::int - extract(year from e.joined_on)::int as y) t
-    where e.active and e.joined_on is not null and y >= 1 and reminder_match(e.joined_on, day)
+    where e.active and e.role is distinct from 'admin' and e.joined_on is not null and y >= 1 and reminder_match(e.joined_on, day)
     union all
     select h.id::text, 'holiday', format('Reminder: tomorrow is %s%s', h.name,
       coalesce(' (' || (select name from offices where id = h.office_id) || ' office only)', ''))
@@ -1134,7 +1201,7 @@ revoke update on attendance, leave_requests, channel_members, messages, todos fr
 grant update (mode, check_in_at, check_out_at, note) on attendance to authenticated;
 grant update (last_read_at) on channel_members to authenticated;
 grant update (title, due_on, done_at) on todos to authenticated;
-revoke insert, update, delete on regularizations, employee_salaries, employee_bank, payroll_runs, payroll_lines from anon, authenticated;
+revoke insert, update, delete on regularizations, employee_salaries, employee_bank, payroll_runs, payroll_lines, calls, call_participants from anon, authenticated;
 revoke all on reminder_log, rate_limits from anon, authenticated;
 
 -- signed-out requests get nothing

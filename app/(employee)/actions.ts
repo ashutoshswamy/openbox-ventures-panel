@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMe } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
-import { meetUrl, str } from "@/lib/util";
+import { CALL_ENDED, meetUrl, roomOf, str } from "@/lib/util";
 
 function done() {
   revalidatePath("/", "layout");
@@ -129,10 +129,27 @@ async function sweepOrphans(ownerId: string) {
   }
 }
 
-export async function startCall(channelId: string) {
+export async function startCall(channelId: string, room: string) {
   const me = await requireMe();
-  await db().from("messages").insert({ channel_id: channelId, sender_id: me.id, body: `Started a video call: ${meetUrl(channelId)}` });
+  if (!/^[a-f0-9]{12}$/.test(room)) throw new Error("Invalid room");
+  const sb = db();
+  const { error } = await sb.rpc("start_call", { ch: channelId, p_room: room });
+  if (error) throw new Error(error.message);
+  await sb.from("messages").insert({ channel_id: channelId, sender_id: me.id, body: `Started a video call: ${meetUrl(channelId, room)}` });
   revalidatePath(`/chat/${channelId}`);
+}
+
+// Any channel member can end a call; the page then shows its link as ended.
+export async function endCall(fd: FormData) {
+  const me = await requireMe();
+  const channel_id = str(fd, "channel_id");
+  const url = str(fd, "url");
+  if (!channel_id || !url?.startsWith("https://meet.jit.si/")) return "Invalid call";
+  const sb = db();
+  await sb.rpc("end_call", { p_room: roomOf(url) }); // calls from before call history have no row: nothing to close
+  const { error } = await sb.from("messages").insert({ channel_id, sender_id: me.id, body: CALL_ENDED + url });
+  if (error) return error.message;
+  revalidatePath(`/chat/${channel_id}`);
 }
 
 // Read marker. Department channel members get their row on first read.

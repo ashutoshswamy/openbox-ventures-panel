@@ -7,7 +7,7 @@ drop view if exists leave_balances, attendance_report cascade;
 
 -- (announcements table, user_role type: from older schema versions, dropped if still around)
 drop table if exists
-  rate_limits, payroll_lines, payroll_runs, employee_bank, employee_salaries, reminder_log, regularizations, todos, employee_profiles, issues, messages, channel_members, channels, announcements,
+  rate_limits, call_participants, calls, payroll_lines, payroll_runs, employee_bank, employee_salaries, reminder_log, regularizations, todos, employee_profiles, issues, messages, channel_members, channels, announcements,
   leave_carry_forward, leave_requests, leave_types, holidays,
   attendance, employees, departments, offices
 cascade;
@@ -15,7 +15,7 @@ cascade;
 drop function if exists
   my_role, me, is_admin, manages, is_member, distance_m, my_today,
   check_in, check_out, leave_days, apply_leave, cancel_leave, close_year,
-  create_department_channel, rename_department_channel, dm_with, my_channels,
+  create_department_channel, rename_department_channel, dm_with, my_channels, start_call, call_ping, end_call,
   post_announcement, announce_holiday, announce_office, announce_joiner, orphan_uploads,
   hit_rate_limit, can_see_pay, can_run_payroll, add_salary, save_bank_details, payroll_derive, create_payroll_run, update_payroll_line,
   submit_payroll_run, review_payroll_run, delete_payroll_run,

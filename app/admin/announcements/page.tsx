@@ -50,7 +50,7 @@ export default async function Announcements() {
                   <p className={`text-sm whitespace-pre-wrap ${title ? "mt-1 text-muted" : ""}`}>{text}</p>
                   {p.attachment_path && <Attachment id={p.id} path={p.attachment_path} chip="bg-surface-2" />}
                   <p className="mt-2 text-xs text-muted">
-                    {auto ? "Automated" : p.sender?.full_name} · {fmtDate(p.created_at.slice(0, 10))} {fmtTime(p.created_at)}
+                    {auto ? "Automated" : p.sender?.full_name ?? "Open Box Ventures"} · {fmtDate(p.created_at.slice(0, 10))} {fmtTime(p.created_at)}
                   </p>
                 </div>
                 {(me.role === "admin" || p.sender_id === me.id) && <ActionForm action={deleteAnnouncement} confirm="Delete this post for everyone?">

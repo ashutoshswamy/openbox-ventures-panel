@@ -4,25 +4,34 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { DEFAULT_TZ, fmtDate, fmtTime, meetUrl, splitPost, todayIn } from "@/lib/util";
+import { CALL_ENDED, DEFAULT_TZ, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { Attachment } from "@/components/attachment";
 import { Avatar } from "@/components/avatar";
-import { CallButton } from "@/components/call-button";
-import { markRead, sendMessage } from "../../actions";
+import { CallButton, CallCard, Ended } from "@/components/call-button";
+import { endCall, markRead, sendMessage } from "../../actions";
 
 export const metadata = { title: "Chat" };
 
-function Body({ text, mine }: { text: string; mine: boolean }) {
-  const call = text.match(/https:\/\/meet\.jit\.si\/\S+/);
-  if (call)
+const callUrl = (text: string) => text.match(/https:\/\/meet\.jit\.si\/\S+/)?.[0];
+
+function Body({ text, mine, channelId, liveCall, myName, sentAt }: { text: string; mine: boolean; channelId: string; liveCall: string | null; myName: string; sentAt: string }) {
+  const call = callUrl(text);
+  const icon = <span className={`grid size-8 shrink-0 place-items-center rounded-full ${mine ? "bg-primary-fg/15" : "bg-surface"}`}><Video className="size-4" /></span>;
+  if (call && text.startsWith(CALL_ENDED))
+    return <p className="flex items-center gap-3 py-1 font-medium">{icon} Ended the video call</p>;
+  if (call && call === liveCall)
     return (
-      <a href={call[0]} target="_blank" rel="noreferrer" className="flex items-center gap-3 py-1 font-medium">
-        <span className={`grid size-8 place-items-center rounded-full ${mine ? "bg-primary-fg/15" : "bg-surface"}`}><Video className="size-4" /></span>
-        <span>Video call started<span className="block text-xs font-normal opacity-70">Tap to join</span></span>
-      </a>
+      <CallCard url={call} name={myName} startedAt={sentAt} icon={icon} endForm={
+        <ActionForm action={endCall}>
+          <input type="hidden" name="channel_id" value={channelId} />
+          <input type="hidden" name="url" value={call} />
+          <button className={`rounded-lg px-2.5 py-1 text-xs font-medium ${mine ? "bg-primary-fg/15" : "bg-surface"}`}>End call</button>
+        </ActionForm>
+      } />
     );
+  if (call) return <Ended icon={icon} />;
   return (
     <p className="break-words whitespace-pre-wrap">
       {text.split(/(https?:\/\/\S+)/g).map((part, i) =>
@@ -44,6 +53,13 @@ function Day({ day }: { day: string }) {
   );
 }
 
+// Only the newest call can still be live (CallCard then checks who's in it), until someone ends it. Messages are newest-first.
+function liveCallOf(messages: Msg[]) {
+  const latest = messages.find((m) => m.body && callUrl(m.body));
+  if (!latest?.body || latest.body.startsWith(CALL_ENDED)) return null;
+  return callUrl(latest.body) ?? null;
+}
+
 type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; sender: { full_name: string; avatar_url: string | null } | null };
 
 export default async function Channel({ params }: PageProps<"/chat/[id]">) {
@@ -59,6 +75,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   await markRead(id);
   const messages = (data ?? []) as unknown as Msg[];
   const name = channel.name ?? "Unnamed";
+  const liveCall = liveCallOf(messages);
 
   return (
     <>
@@ -77,7 +94,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : "Group"}
           </p>
         </div>
-        {!channel.announcements && <CallButton channelId={id} url={meetUrl(id)} />}
+        {!channel.announcements && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
       <ol className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-y-auto px-4 py-4 md:px-6">
@@ -96,7 +113,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                   {title && <h3 className="font-semibold">{title}</h3>}
                   <p className={`text-sm whitespace-pre-wrap ${title ? "mt-1 text-muted" : ""}`}>{text}</p>
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip="bg-surface-2" />}
-                  <p className="mt-2 text-xs text-muted">{m.sender?.full_name ?? "Admin"} · {fmtDate(m.created_at.slice(0, 10))} {fmtTime(m.created_at)}</p>
+                  <p className="mt-2 text-xs text-muted">{m.sender?.full_name ?? "Open Box Ventures"} · {fmtDate(m.created_at.slice(0, 10))} {fmtTime(m.created_at)}</p>
                 </div>
               )}
             </li>
@@ -116,7 +133,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
               <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
                 {!mine && (first || newDay) && <span className="mb-1 ml-1 text-xs font-medium text-muted">{who}</span>}
                 <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-surface-2"}`}>
-                  {m.body && <Body text={m.body} mine={mine} />}
+                  {m.body && <Body text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
                   <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}</div>
                 </div>

@@ -21,7 +21,7 @@ export async function pendingCounts(sb: any, meId: string, olderThanHours = 0) {
 export async function todaysCelebrations() {
   const md = todayIn(DEFAULT_TZ).slice(5);
   const year = Number(todayIn(DEFAULT_TZ).slice(0, 4));
-  const { data } = await adminDb().from("employees").select("full_name, joined_on, profile:employee_profiles(date_of_birth)").eq("active", true);
+  const { data } = await adminDb().from("employees").select("full_name, joined_on, profile:employee_profiles(date_of_birth)").eq("active", true).or("role.is.null,role.neq.admin");
   const out: string[] = [];
   for (const e of data ?? []) {
     const dob = (e.profile as { date_of_birth?: string } | null)?.date_of_birth;

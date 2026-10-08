@@ -38,10 +38,14 @@ export function str(fd: FormData, key: string) {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
-// ponytail: public meet.jit.si, room name = channel id (unguessable). Self-host Jitsi / LiveKit if privacy or recording needed.
-export function meetUrl(channelId: string) {
-  return `https://meet.jit.si/OpenboxVentures-${channelId.replaceAll("-", "")}`;
+// ponytail: public meet.jit.si, room name = channel id (unguessable) + per-call suffix. Self-host Jitsi / LiveKit if privacy or recording needed.
+export function meetUrl(channelId: string, room: string) {
+  return `https://meet.jit.si/OpenboxVentures-${channelId.replaceAll("-", "")}${room}`;
 }
+
+export const roomOf = (url: string) => url.slice(-12);
+
+export const CALL_ENDED = "Ended the video call: ";
 
 export function greeting(tz = DEFAULT_TZ) {
   const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(new Date()));
