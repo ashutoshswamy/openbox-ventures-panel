@@ -192,20 +192,61 @@ button, summary, .btn { user-select: none; }
   .btn-icon { min-width: 2.75rem; }
 }
 
-/* org chart: CSS-only connectors */
-.org ul { display: flex; justify-content: center; padding-top: 1.25rem; position: relative; }
-.org li { position: relative; display: flex; flex-direction: column; align-items: center; padding: 1.25rem 0.5rem 0; }
+/* org chart: dot-grid canvas, CSS-only rounded connectors, collapsible teams (components/org-chart.tsx) */
+.org-canvas {
+  overflow-x: auto; border: 1px solid var(--line); border-radius: 1rem; background-color: var(--surface-2);
+  background-image: radial-gradient(color-mix(in oklab, var(--muted) 22%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.org { --gap: 2.25rem; --wire: color-mix(in oklab, var(--muted) 45%, transparent); }
+.org ul { display: flex; justify-content: center; padding-top: var(--gap); position: relative; }
+.org li { position: relative; display: flex; flex-direction: column; align-items: center; padding: var(--gap) 0.625rem 0; }
 .org > ul { padding-top: 0; }
 .org > ul > li { padding-top: 0; }
-.org li::before, .org li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 1.25rem; border-top: 1px solid var(--line); }
-.org li::after { right: auto; left: 50%; border-left: 1px solid var(--line); }
+.org li::before, .org li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--gap); border-top: 1.5px solid var(--wire); }
+.org li::after { right: auto; left: 50%; border-left: 1.5px solid var(--wire); }
 .org li:only-child::before, .org li:only-child::after { border-top: 0; }
-.org li:only-child::after { border-left: 1px solid var(--line); }
+.org li:only-child::after { border-left: 1.5px solid var(--wire); }
 .org li:first-child::before, .org li:last-child::after { border-top: 0; }
-.org li:last-child::before { border-right: 1px solid var(--line); }
+.org li:last-child::before { border-right: 1.5px solid var(--wire); border-top-right-radius: 0.75rem; }
+.org li:first-child::after { border-top-left-radius: 0.75rem; }
+.org li:only-child::after { border-top-left-radius: 0; }
+.org li:last-child:not(:only-child)::after, .org li:only-child::before { border: 0; } /* one vertical per elbow, no doubled line */
 .org > ul > li::before, .org > ul > li::after { display: none; }
-.org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 1.25rem; border-left: 1px solid var(--line); }
-.org-card { display: flex; align-items: center; gap: 0.625rem; min-width: 11rem; max-width: 14rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); }
+.org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: var(--gap); border-left: 1.5px solid var(--wire); }
+.org-team { display: flex; flex-direction: column; align-items: center; }
+.org-team > summary { list-style: none; cursor: pointer; border-radius: 1rem; }
+.org-team > summary::-webkit-details-marker { display: none; }
+.org-team > summary:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.org-team:not([open]) > summary .org-chev { rotate: -90deg; }
+.org-chev { transition: rotate 0.2s ease; }
+
+.org-card {
+  position: relative; display: flex; width: 12.5rem; flex-direction: column; align-items: center; gap: 0.5rem;
+  padding: 2rem 0.875rem 0.875rem; margin-top: 1.5rem; text-align: center;
+  border: 1px solid var(--line); border-radius: 1rem; background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--text) 6%, transparent);
+  transition: translate 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s;
+}
+.org-avatar { position: absolute; top: -1.5rem; left: 50%; translate: -50% 0; border-radius: 999px; box-shadow: 0 0 0 4px var(--surface); }
+.org-sub { color: var(--muted); }
+.org-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0; padding: 0.125rem 0.5rem; border-radius: 999px;
+  font-size: 11px; font-weight: 500; color: var(--muted); background: var(--surface-2);
+}
+.org-root { background: var(--ink); border-color: var(--ink); color: var(--ink-text); }
+.org-root .org-avatar { box-shadow: 0 0 0 4px var(--ink); }
+.org-root .org-sub { color: color-mix(in oklab, var(--ink-text) 65%, transparent); }
+.org-root .org-chip { background: color-mix(in oklab, var(--ink-text) 12%, transparent); color: color-mix(in oklab, var(--ink-text) 80%, transparent); }
+@media (hover: hover) {
+  .org-card:hover { translate: 0 -2px; border-color: color-mix(in oklab, var(--muted) 35%, var(--line)); box-shadow: 0 12px 28px -14px color-mix(in oklab, var(--text) 28%, transparent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .org-card { animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(var(--d, 0) * 70ms); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .org-card, .org-chev { transition: none; }
+}
 
 /* profile Company section: show only the picked company's alias/email fields */
 .company:not(:has([name=company][value=lgoob]:checked, [name=company][value=both]:checked)) .lg,
