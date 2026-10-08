@@ -132,7 +132,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
       {channel.announcements ? (
         me.role === "manager" || me.role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
-            <Link href="/admin/announcements" className="btn btn-primary"><Megaphone /> Post an announcement</Link>
+            <Link href={me.role === "hr" ? "/hr/announcements" : "/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>
           </div>
         ) : (
           <p className="flex items-center justify-center gap-2 border-t border-line p-4 text-sm text-muted">

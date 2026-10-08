@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getMe } from "@/lib/me";
+import { getMe, rateLimit } from "@/lib/me";
 import { adminDb } from "@/lib/supabase";
 import { str } from "@/lib/util";
 
@@ -12,6 +12,7 @@ const PHONE = /^\+?[\d\s-]{7,15}$/;
 export async function saveProfile(fd: FormData) {
   const me = await getMe();
   if (!me || me.role === "admin") return "Not allowed";
+  await rateLimit(me.id);
 
   const required = ["full_name", "date_of_birth", "phone", "current_address", "emergency_name", "emergency_relation", "emergency_phone"];
   const missing = required.filter((k) => !str(fd, k));

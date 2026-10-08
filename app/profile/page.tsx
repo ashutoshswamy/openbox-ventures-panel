@@ -7,6 +7,11 @@ import { PhotoPicker } from "@/components/photo-picker";
 import { getMe } from "@/lib/me";
 import { adminDb } from "@/lib/supabase";
 import { ActionForm } from "@/components/action-form";
+import { db } from "@/lib/supabase";
+import { SalaryBreakdown } from "@/components/salary-breakdown";
+import { BankForm } from "@/components/bank-form";
+import { breakdown, daysIn, inr } from "@/lib/payroll";
+import { fmtDate, todayIn } from "@/lib/util";
 import { saveProfile } from "./actions";
 
 export const metadata = { title: "My details" };
@@ -38,6 +43,13 @@ export default async function Profile() {
   if (me.role === "admin") redirect("/admin");
   const { data: p } = await adminDb().from("employee_profiles").select("*").eq("employee_id", me.id).maybeSingle();
   const onboarding = !me.onboarded;
+  // own salary + bank (RLS: own rows only)
+  const today = todayIn();
+  const [{ data: sal }, { data: bank }] = onboarding ? [{ data: null }, { data: null }] : await Promise.all([
+    db().from("employee_salaries").select("annual_ctc, effective_from").lte("effective_from", today).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
+    db().from("employee_bank").select("*").maybeSingle(),
+  ]);
+  const pay = sal ? breakdown(Number(sal.annual_ctc), { month: Number(today.slice(5, 7)), daysInMonth: daysIn(Number(today.slice(0, 4)), Number(today.slice(5, 7))) }) : null;
 
   return (
     <main className="min-h-dvh lg:grid lg:grid-cols-[minmax(300px,380px)_1fr]">
@@ -117,6 +129,23 @@ export default async function Profile() {
               </button>
             </div>
           </ActionForm>
+          {!onboarding && (
+            <div className="space-y-8 border-t border-line py-10">
+              <section>
+                <h2 className="text-[15px] font-semibold tracking-tight">My salary</h2>
+                {pay && sal ? (
+                  <div className="mt-3 max-w-md">
+                    <p className="mb-2 text-sm text-muted">{inr(Number(sal.annual_ctc))} a year since {fmtDate(sal.effective_from)}. Monthly, before loss of pay and TDS.</p>
+                    <SalaryBreakdown p={pay} />
+                  </div>
+                ) : <p className="mt-1 text-sm text-muted">Not set up yet. HR adds it.</p>}
+              </section>
+              <section>
+                <h2 className="mb-3 text-[15px] font-semibold tracking-tight">Bank details</h2>
+                <BankForm bank={bank} />
+              </section>
+            </div>
+          )}
           <div className="h-10" />
         </div>
       </div>

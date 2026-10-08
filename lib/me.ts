@@ -57,10 +57,19 @@ export const getMe = cache(async (): Promise<Me | null> => {
   return linked && toMe(linked, role);
 });
 
+// Per-employee limit on server actions + file routes (everything that goes through requireMe).
+// ponytail: Postgres fixed window, one RPC per call. IP-level / page-view floods: Vercel Firewall rate-limit rule.
+export async function rateLimit(employeeId: string, max = 120, windowS = 60) {
+  const { data, error } = await adminDb().rpc("hit_rate_limit", { p_key: employeeId, p_max: max, p_window_s: windowS });
+  if (error) throw new Error("Rate limit check failed");
+  if (!data) throw new Error("Too many requests");
+}
+
 // For server actions / route handlers. Throws (not redirect) so callers can't skip it.
 export async function requireMe(): Promise<Assigned> {
   const me = await getMe();
   if (!me?.role) throw new Error("Unauthorized");
+  await rateLimit(me.id);
   return me as Assigned;
 }
 
@@ -96,7 +105,15 @@ export async function employeePage(): Promise<Assigned> {
 // Admin-only pages: managers get bounced to the admin overview.
 export async function adminPage(): Promise<Assigned> {
   const me = await pageMe();
-  if (me.role !== "admin") redirect("/admin");
+  if (me.role !== "admin") redirect(me.role === "hr" ? "/hr" : "/admin");
+  return me;
+}
+
+// HR portal (/hr): hr only. Admin/manager → /admin, employees → /.
+export async function hrPage(): Promise<Assigned> {
+  const me = await pageMe();
+  if (me.role === "employee") redirect("/");
+  if (me.role !== "hr") redirect("/admin");
   return me;
 }
 

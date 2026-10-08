@@ -2,10 +2,11 @@ import { adminPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate } from "@/lib/util";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock, ChevronDown, PartyPopper, Plus, Save, Tag, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarClock, ChevronDown, PartyPopper, Plus, Save, Tag, Trash2, Upload } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { PageHeader } from "@/components/shell";
 import { closeYear, deleteHoliday, saveHoliday, saveLeaveType } from "../../actions";
+import { importHolidays } from "./holiday-actions";
 
 export const metadata = { title: "Leave policy" };
 
@@ -99,6 +100,19 @@ export default async function LeavePolicy() {
           </select>
           <button className="btn btn-primary"><Plus /> Add holiday</button>
         </ActionForm>
+        <details className="border-t border-line pt-4">
+          <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium"><Upload className="size-4" /> Import from CSV</summary>
+          <ActionForm action={importHolidays} success="Imported" className="mt-4 space-y-3 whitespace-pre-line">
+            <p className="text-sm text-muted">
+              One holiday per line: <code>date,name[,office name]</code>. Dates as YYYY-MM-DD, DD-MM-YYYY or DD/MM/YYYY. Leave the office blank for all offices.
+              Every row is checked first; nothing is added if any row is wrong. Exact duplicates are skipped and one summary announcement is posted.
+            </p>
+            <pre className="rounded-xl bg-surface-2/70 p-3 text-xs">{"date,name,office\n2027-01-26,Republic Day\n15-08-2027,Independence Day\n2027-11-01,Local festival,Pune"}</pre>
+            <textarea name="csv" rows={5} placeholder="Paste rows here" className="input font-mono text-xs" />
+            <input type="file" name="file" accept=".csv,text/csv" className="input" />
+            <button className="btn btn-primary"><Upload /> Import</button>
+          </ActionForm>
+        </details>
       </section>
 
       <section className="card space-y-4">

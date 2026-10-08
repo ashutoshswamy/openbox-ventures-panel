@@ -1,14 +1,16 @@
--- OpenBox Ventures LLP panel - full schema. Run once on an empty project (or after reset.sql).
+-- Open Box Ventures LLP panel - full schema. Run once on an empty project (or after reset.sql).
 -- Auth: Clerk third-party auth. auth.jwt()->>'sub' = Clerk user id.
 -- Role lives in Clerk publicMetadata.role, exposed in the session token as metadata.role
 -- (Clerk → Sessions → Customize session token: {"metadata": "{{user.public_metadata}}"}).
 -- Validation (geofence, leave rules) lives in SQL functions so it can't be bypassed via PostgREST.
+-- Roles: employee, manager (office head), hr (office-scoped), admin (whole org).
 
 create type attendance_mode as enum ('office', 'wfh');
-create type leave_status as enum ('pending', 'approved', 'rejected', 'cancelled');
+create type leave_status as enum ('pending', 'manager_approved', 'approved', 'rejected', 'cancelled');
 create type leave_accrual as enum ('yearly', 'monthly');
 create type channel_type as enum ('dm', 'group', 'department');
 create type issue_status as enum ('open', 'resolved');
+create type payroll_status as enum ('draft', 'submitted', 'approved');
 
 -- ── Org ──────────────────────────────────────────────────────────────
 
@@ -36,19 +38,25 @@ create table departments (
 );
 
 -- Row created by admin at invite time; clerk_user_id linked on first sign-in.
--- Manager (Clerk role) manages everyone in their own office_id.
+-- Manager / HR (Clerk role) manage everyone in their own office_id.
+-- email = company email (login + invite).
 create table employees (
   id            uuid primary key default gen_random_uuid(),
   clerk_user_id text unique,
   email         text not null unique check (email = lower(email)),
-  full_name     text not null,
+  full_name     text not null check (length(full_name) between 1 and 120),
   office_id     uuid references offices on delete set null,
   department_id uuid references departments on delete set null,
   designation   text,
   joined_on     date,
+  exit_date     date check (exit_date >= joined_on),
+  employee_code text unique check (employee_code = trim(employee_code) and employee_code <> ''),
+  alias_name    text,
+  company_phone text,
+  reports_to    uuid references employees on delete set null check (reports_to <> id), -- org chart
   active        boolean not null default true,
   -- copy of Clerk publicMetadata.role, kept in sync by the app; for filtering only (access uses the JWT)
-  role          text check (role in ('employee', 'manager', 'admin')),
+  role          text check (role in ('employee', 'manager', 'hr', 'admin')),
   avatar_url    text, -- copy of the Clerk profile photo (null = none), kept in sync by the app
   created_at    timestamptz not null default now()
 );
@@ -76,6 +84,26 @@ create table holidays (
   name      text not null
 );
 
+-- Attendance regularization: employee asks to fix a missed / wrong check-in for a past day.
+-- Max 5 per calendar month (pending + approved). HR (own office) or admin approves → attendance row upserted.
+create table regularizations (
+  id           uuid primary key default gen_random_uuid(),
+  employee_id  uuid not null references employees on delete cascade,
+  date         date not null,
+  mode         attendance_mode not null,
+  check_in_at  timestamptz not null,
+  check_out_at timestamptz not null,
+  reason       text not null check (length(reason) between 1 and 500),
+  status       leave_status not null default 'pending',
+  reviewed_by  uuid references employees,
+  reviewed_at  timestamptz,
+  review_note  text,
+  created_at   timestamptz not null default now(),
+  check (check_out_at > check_in_at)
+);
+-- one open/approved request per day
+create unique index on regularizations (employee_id, date) where status in ('pending', 'approved');
+
 -- ── Leave ────────────────────────────────────────────────────────────
 
 create table leave_types (
@@ -98,9 +126,12 @@ create table leave_requests (
   end_date      date not null,
   half_day      boolean not null default false,
   days          numeric(5,1) not null check (days > 0),
-  reason        text,
+  reason        text check (length(reason) <= 500),
   doc_path      text,
   status        leave_status not null default 'pending',
+  manager_reviewed_by uuid references employees, -- step 1 (manager), then reviewed_by = final (HR / admin)
+  manager_reviewed_at timestamptz,
+  manager_note        text,
   reviewed_by   uuid references employees,
   reviewed_at   timestamptz,
   review_note   text,
@@ -121,7 +152,7 @@ create table leave_carry_forward (
 
 create table channels (
   id            uuid primary key default gen_random_uuid(),
-  name          text,
+  name          text check (length(name) <= 100),
   type          channel_type not null,
   department_id uuid references departments on delete cascade,
   created_by    uuid references employees on delete set null,
@@ -141,7 +172,7 @@ create table messages (
   id              uuid primary key default gen_random_uuid(),
   channel_id      uuid not null references channels on delete cascade,
   sender_id       uuid references employees on delete set null,
-  body            text,
+  body            text check (length(body) <= 5000),
   attachment_path text,
   created_at      timestamptz not null default now(),
   check (body is not null or attachment_path is not null)
@@ -153,7 +184,7 @@ create table issues (
   id          uuid primary key default gen_random_uuid(),
   employee_id uuid not null references employees on delete cascade,
   subject     text not null check (length(subject) between 1 and 200),
-  body        text not null,
+  body        text not null check (length(body) between 1 and 5000),
   status      issue_status not null default 'open',
   admin_note  text,
   resolved_by uuid references employees on delete set null,
@@ -177,10 +208,109 @@ create table employee_profiles (
   emergency_relation text not null,
   emergency_phone    text not null,
   completed_at       timestamptz not null default now(),
-  updated_at         timestamptz not null default now()
+  updated_at         timestamptz not null default now(),
+  -- free text from the onboarding form: keep it bounded
+  check (length(current_address) <= 500 and length(coalesce(permanent_address, '')) <= 500
+    and length(emergency_name) <= 120 and length(emergency_relation) <= 60 and length(coalesce(personal_email, '')) <= 254
+    and length(coalesce(gender, '')) <= 30 and length(coalesce(blood_group, '')) <= 10)
 );
 
-alter publication supabase_realtime add table messages;
+-- ── To-dos ───────────────────────────────────────────────────────────
+
+-- To-dos: everyone keeps a personal list; admins (anyone) and managers (own office) assign tasks.
+create table todos (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references employees on delete cascade,  -- whose list it's on
+  assigned_by uuid references employees on delete set null,          -- null = personal
+  title       text not null check (length(title) between 1 and 300),
+  due_on      date,
+  done_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+create index on todos (owner_id, done_at);
+create index on todos (assigned_by) where assigned_by is not null;
+
+-- ── Payroll (India) ──────────────────────────────────────────────────
+-- Salary data readable by the employee, admin and HR of the employee's office only (managers: no).
+-- All writes go through security definer functions (payroll section below).
+
+-- ── Salary revisions (increment = new row) ──
+create table employee_salaries (
+  id             uuid primary key default gen_random_uuid(),
+  employee_id    uuid not null references employees on delete cascade,
+  annual_ctc     numeric(12,2) not null check (annual_ctc > 0),
+  effective_from date not null,
+  note           text,
+  created_by     uuid references employees,
+  created_at     timestamptz not null default now(),
+  unique (employee_id, effective_from)
+);
+
+-- ── Bank / statutory details ──
+create table employee_bank (
+  employee_id    uuid primary key references employees on delete cascade,
+  holder_name    text not null check (trim(holder_name) <> ''),
+  account_number text not null check (account_number ~ '^[0-9]{6,20}$'),
+  ifsc           text not null check (ifsc ~ '^[A-Z]{4}0[A-Z0-9]{6}$'),
+  bank_name      text not null check (trim(bank_name) <> ''),
+  pan            text check (pan ~ '^[A-Z]{5}[0-9]{4}[A-Z]$'),
+  uan            text check (uan ~ '^[0-9]{12}$'),
+  updated_at     timestamptz not null default now()
+);
+
+-- ── Salary sheets ──
+create table payroll_runs (
+  id           uuid primary key default gen_random_uuid(),
+  month        date not null check (month = date_trunc('month', month)::date), -- first of month
+  office_id    uuid references offices on delete cascade, -- null = whole org (admin only)
+  status       payroll_status not null default 'draft',
+  created_by   uuid references employees,
+  created_at   timestamptz not null default now(),
+  submitted_at timestamptz,
+  reviewed_by  uuid references employees,
+  reviewed_at  timestamptz,
+  review_note  text -- set when admin sends it back to draft
+);
+create unique index on payroll_runs (month, coalesce(office_id, '00000000-0000-0000-0000-000000000000'));
+
+create table payroll_lines (
+  id               uuid primary key default gen_random_uuid(),
+  run_id           uuid not null references payroll_runs on delete cascade,
+  employee_id      uuid not null references employees on delete cascade,
+  basic            numeric(12,2) not null,
+  hra              numeric(12,2) not null,
+  special          numeric(12,2) not null,
+  gross            numeric(12,2) not null,
+  employee_pf      numeric(12,2) not null default 0,
+  employer_pf      numeric(12,2) not null default 0,
+  employee_esi     numeric(12,2) not null default 0,
+  employer_esi     numeric(12,2) not null default 0,
+  pt               numeric(12,2) not null default 0,
+  tds              numeric(12,2) not null default 0 check (tds >= 0),
+  other_deductions numeric(12,2) not null default 0 check (other_deductions >= 0),
+  lop_days         numeric(4,1) not null default 0 check (lop_days >= 0),
+  lop_amount       numeric(12,2) not null default 0,
+  net              numeric(12,2) not null,
+  unique (run_id, employee_id)
+);
+
+-- one reminder per (day, kind, ref), so re-running the same day is harmless
+create table reminder_log (
+  day  date not null,
+  kind text not null,
+  ref  text not null,
+  primary key (day, kind, ref)
+);
+
+-- per-user request counter for server actions / file routes (fixed window). Server key only.
+create table rate_limits (
+  key          text primary key,
+  window_start timestamptz not null,
+  hits         int not null
+);
+
+-- live refresh (components/live-refresh.tsx) + chat. Not channel_members: opening a chat writes last_read_at → refresh loop.
+alter publication supabase_realtime add table messages, leave_requests, attendance, issues, holidays, employees, todos, regularizations;
 
 -- ── RLS helpers (security definer: bypass RLS, avoid policy recursion) ──
 
@@ -194,7 +324,7 @@ create function me() returns employees
 language sql stable security definer set search_path = public as $$
   select * from employees
   where clerk_user_id = auth.jwt()->>'sub' and active
-    and my_role() in ('employee', 'manager', 'admin')
+    and my_role() in ('employee', 'manager', 'hr', 'admin')
 $$;
 
 create function is_admin() returns boolean
@@ -206,8 +336,20 @@ create function manages(emp uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select is_admin() or exists (
     select 1 from employees e, me() m
-    where e.id = emp and my_role() = 'manager' and e.office_id = m.office_id and e.id <> m.id
+    where e.id = emp and my_role() in ('manager', 'hr') and e.office_id = m.office_id and e.id <> m.id
   )
+$$;
+
+-- payroll access: own pay, admin, HR of the employee's office
+create function can_see_pay(emp uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select emp = (select id from me()) or is_admin() or (my_role() = 'hr' and manages(emp))
+$$;
+
+-- caller may run payroll for this office (null = whole org: admin only)
+create function can_run_payroll(p_office uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select is_admin() or (my_role() = 'hr' and p_office is not null and p_office = (select office_id from me()))
 $$;
 
 -- department channels: everyone in the department is a member implicitly
@@ -238,6 +380,14 @@ alter table channel_members     enable row level security;
 alter table messages            enable row level security;
 alter table issues              enable row level security;
 alter table employee_profiles   enable row level security;
+alter table todos               enable row level security;
+alter table regularizations     enable row level security;
+alter table employee_salaries   enable row level security;
+alter table employee_bank       enable row level security;
+alter table payroll_runs        enable row level security;
+alter table payroll_lines       enable row level security;
+alter table reminder_log        enable row level security; -- server only (no policies)
+alter table rate_limits         enable row level security; -- server only (no policies)
 
 -- reference data: any active employee reads, admin writes
 create policy read on offices     for select to authenticated using ((select id from me()) is not null);
@@ -249,8 +399,8 @@ create policy admin on holidays    for all    to authenticated using (is_admin()
 create policy read on leave_types  for select to authenticated using ((select id from me()) is not null);
 create policy admin on leave_types for all    to authenticated using (is_admin()) with check (is_admin());
 
--- employees: directory visible to colleagues; admin manages
-create policy read on employees  for select to authenticated using (active and (select id from me()) is not null or is_admin());
+-- employees: directory visible to colleagues; managers/HR also see deactivated rows of their office; admin manages
+create policy read on employees  for select to authenticated using ((active and (select id from me()) is not null) or manages(id));
 create policy admin on employees for all    to authenticated using (is_admin()) with check (is_admin());
 
 -- attendance: own + managed; managers/admin fix entries
@@ -258,10 +408,12 @@ create policy read on attendance   for select to authenticated using (employee_i
 create policy fix on attendance    for update to authenticated using (manages(employee_id)) with check (manages(employee_id));
 create policy remove on attendance for delete to authenticated using (manages(employee_id));
 
--- leave: own + managed read; inserts only via apply_leave(); managers/admin review
+-- leave: own + managed read; writes only via apply_leave() / review_leave() / cancel_leave()
 create policy read on leave_requests   for select to authenticated using (employee_id = (select id from me()) or manages(employee_id));
-create policy review on leave_requests for update to authenticated using (manages(employee_id))
-  with check (manages(employee_id) and status in ('approved', 'rejected') and reviewed_by = (select id from me()));
+
+-- regularizations: own + managed read; writes only via request_/review_regularization()
+create policy read on regularizations for select to authenticated
+  using (employee_id = (select id from me()) or manages(employee_id));
 
 create policy read on leave_carry_forward  for select to authenticated using (employee_id = (select id from me()) or manages(employee_id));
 create policy admin on leave_carry_forward for all    to authenticated using (is_admin()) with check (is_admin());
@@ -282,7 +434,7 @@ create policy read on messages for select to authenticated using (is_member(chan
 create policy send on messages for insert to authenticated with check (
   is_member(channel_id) and sender_id = (select id from me())
   and (attachment_path is null or attachment_path like (select id from me())::text || '/%') -- own uploads only
-  and (is_admin() or my_role() = 'manager' or not exists (select 1 from channels c where c.id = channel_id and c.announcements)) -- admins + managers
+  and (is_admin() or my_role() in ('manager', 'hr') or not exists (select 1 from channels c where c.id = channel_id and c.announcements)) -- admins + managers + HR
 );
 create policy unpost on messages for delete to authenticated using ( -- admins: any announcement; managers: their own
   (is_admin() or sender_id = (select id from me())) and exists (select 1 from channels c where c.id = channel_id and c.announcements)
@@ -298,6 +450,28 @@ create policy read on issues    for select to authenticated using (employee_id =
 create policy report on issues  for insert to authenticated
   with check (employee_id = (select id from me()) and status = 'open' and resolved_by is null and admin_note is null);
 create policy resolve on issues for update to authenticated using (is_admin()) with check (is_admin());
+
+-- to-dos: owner sees their list; assigner tracks what they handed out
+create policy read on todos for select to authenticated
+  using (owner_id = (select id from me()) or assigned_by = (select id from me()));
+create policy add on todos for insert to authenticated with check (
+  (owner_id = (select id from me()) and assigned_by is null)
+  or (assigned_by = (select id from me()) and manages(owner_id))
+);
+create policy edit on todos for update to authenticated
+  using (owner_id = (select id from me()) or assigned_by = (select id from me()))
+  with check (owner_id = (select id from me()) or assigned_by = (select id from me()));
+-- assignee can't drop an assigned task, only finish it
+create policy remove on todos for delete to authenticated
+  using ((owner_id = (select id from me()) and assigned_by is null) or assigned_by = (select id from me()));
+
+-- payroll: salary/bank readable by can_see_pay(); sheets by admin + HR of the office
+create policy read on employee_salaries for select to authenticated using (can_see_pay(employee_id));
+create policy read on employee_bank     for select to authenticated using (can_see_pay(employee_id));
+create policy read on payroll_runs for select to authenticated
+  using (is_admin() or (my_role() = 'hr' and office_id = (select office_id from me())));
+create policy read on payroll_lines for select to authenticated
+  using (is_admin() or (my_role() = 'hr' and manages(employee_id)));
 
 
 -- ════ Features: attendance, leave, chat logic ════
@@ -365,6 +539,57 @@ from attendance a
 join employees e on e.id = a.employee_id
 left join offices o on o.id = e.office_id;
 
+-- Regularization: fix a missed / wrong check-in for a past day. Max 5 per calendar month (pending + approved).
+-- HR (own office) or admin approves → attendance row upserted.
+create function request_regularization(p_date date, p_mode attendance_mode, p_in time, p_out time, p_reason text)
+returns regularizations language plpgsql security definer set search_path = public as $$
+declare
+  e employees := me();
+  tz text;
+  r regularizations;
+begin
+  if e.id is null then raise exception 'Not an active employee'; end if;
+  if my_role() = 'admin' then raise exception 'Admins don''t use attendance or leave'; end if;
+  if p_date > my_today() then raise exception 'Can''t regularize a future date'; end if;
+  if p_out <= p_in then raise exception 'Check-out must be after check-in'; end if;
+  if coalesce(trim(p_reason), '') = '' then raise exception 'Reason is required'; end if;
+  perform 1 from employees where id = e.id for update; -- serialize the monthly count
+  if (select count(*) from regularizations
+      where employee_id = e.id and status in ('pending', 'approved')
+        and date_trunc('month', date) = date_trunc('month', p_date)) >= 5 then
+    raise exception 'Regularization limit reached: 5 per month';
+  end if;
+  tz := coalesce((select timezone from offices where id = e.office_id), 'Asia/Kolkata');
+  insert into regularizations (employee_id, date, mode, check_in_at, check_out_at, reason)
+  values (e.id, p_date, p_mode, (p_date + p_in) at time zone tz, (p_date + p_out) at time zone tz, trim(p_reason))
+  returning * into r;
+  return r;
+exception when unique_violation then
+  raise exception 'You already have a regularization for that day';
+end $$;
+
+create function review_regularization(p_id uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare r regularizations;
+begin
+  select * into r from regularizations where id = p_id and status = 'pending' for update;
+  if r.id is null then raise exception 'Request not found or already reviewed'; end if;
+  -- HR approves (own office, not self, via manages()); admin as fallback
+  if not (is_admin() or (my_role() = 'hr' and manages(r.employee_id))) then
+    raise exception 'Only HR can review regularizations';
+  end if;
+  update regularizations
+  set status = case when p_approve then 'approved' else 'rejected' end::leave_status,
+      reviewed_by = (select id from me()), reviewed_at = now(), review_note = p_note
+  where id = r.id;
+  if p_approve then
+    insert into attendance (employee_id, date, mode, check_in_at, check_out_at, note)
+    values (r.employee_id, r.date, r.mode, r.check_in_at, r.check_out_at, 'Regularized: ' || r.reason)
+    on conflict (employee_id, date) do update
+      set mode = excluded.mode, check_in_at = excluded.check_in_at, check_out_at = excluded.check_out_at, note = excluded.note;
+  end if;
+end $$;
+
 -- ── Leave ────────────────────────────────────────────────────────────
 
 -- working days (office work_days minus holidays) in [s, e]
@@ -388,7 +613,7 @@ select *, entitled - used as balance from (
        else round(t.yearly_quota * extract(month from current_date) / 12, 1) end)
       + coalesce(cf.days, 0) as entitled,
     coalesce(sum(r.days) filter (where r.status = 'approved'), 0) as used,
-    coalesce(sum(r.days) filter (where r.status = 'pending'), 0) as pending
+    coalesce(sum(r.days) filter (where r.status::text in ('pending', 'manager_approved')), 0) as pending
   from employees e
   cross join leave_types t
   left join leave_carry_forward cf
@@ -422,7 +647,7 @@ begin
   if n = 0 then raise exception 'No working days in that range'; end if;
 
   if exists (select 1 from leave_requests
-             where employee_id = e.id and status in ('pending', 'approved')
+             where employee_id = e.id and status in ('pending', 'manager_approved', 'approved')
                and start_date <= p_end and end_date >= p_start) then
     raise exception 'Overlaps an existing request';
   end if;
@@ -454,6 +679,58 @@ begin
   if not found then raise exception 'Only your own pending requests can be cancelled'; end if;
 end $$;
 
+-- Add / replace the supporting document on your own open or approved leave (e.g. HR asks for a medical certificate).
+-- Replaced file is no longer referenced → swept by orphan_uploads().
+create function update_leave_doc(p_id uuid, p_doc text) returns void
+language plpgsql security definer set search_path = public as $$
+declare e employees := me();
+begin
+  if p_doc is null or p_doc not like e.id::text || '/%' then raise exception 'Invalid document'; end if;
+  update leave_requests set doc_path = p_doc
+  where id = p_id and employee_id = e.id and status in ('pending', 'manager_approved', 'approved');
+  if not found then raise exception 'Only your own pending or approved requests can be updated'; end if;
+end $$;
+
+-- Two-step approval: manager → 'manager_approved' → HR (or admin) final 'approved'.
+-- Manager approves/rejects first; HR (own office) or admin gives the final decision.
+-- HR/admin may decide straight from 'pending' only if admin, the employee is a manager, or the office has no manager.
+-- Manager/HR leave: manager can't review it (HR leave: admin only).
+create function review_leave(p_id uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  r leave_requests;
+  emp employees;
+  rl text := my_role();
+  who uuid := (select id from me());
+  skip boolean;
+begin
+  select * into r from leave_requests where id = p_id and status in ('pending', 'manager_approved') for update;
+  if r.id is null then raise exception 'Request not found or already reviewed'; end if;
+  if r.employee_id = who or not manages(r.employee_id) then raise exception 'Not allowed to review this request'; end if;
+  select * into emp from employees where id = r.employee_id;
+  skip := is_admin() or emp.role = 'manager'
+    or not exists (select 1 from employees m where m.office_id = emp.office_id and m.role = 'manager' and m.active and m.id <> emp.id);
+
+  if rl = 'manager' then
+    if emp.role in ('manager', 'hr') then raise exception 'Only HR can give final approval'; end if;
+    if r.status = 'manager_approved' then raise exception 'Only HR can give final approval'; end if;
+    update leave_requests set
+      status = case when p_approve then 'manager_approved' else 'rejected' end::leave_status,
+      manager_reviewed_by = who, manager_reviewed_at = now(), manager_note = p_note,
+      reviewed_by = case when p_approve then null else who end,
+      reviewed_at = case when p_approve then null else now() end,
+      review_note = case when p_approve then null else p_note end
+    where id = r.id;
+  else
+    if emp.role = 'hr' and not is_admin() then raise exception 'Only admin can review HR leave'; end if;
+    if r.status = 'pending' and not skip then raise exception 'Waiting for manager approval'; end if;
+    update leave_requests set
+      status = case when p_approve then 'approved' else 'rejected' end::leave_status,
+      reviewed_by = who, reviewed_at = now(), review_note = p_note
+    where id = r.id;
+  end if;
+end $$;
+
 -- carry unused leave from year y into y+1, capped per type
 create function close_year(y int) returns int
 language plpgsql security definer set search_path = public as $$
@@ -475,6 +752,24 @@ begin
   get diagnostics n = row_count;
   return n;
 end $$;
+
+-- ── Org chart ────────────────────────────────────────────────────────
+
+-- reject a reports_to that would close a loop (walk up the chain; reaching the row itself = cycle)
+create function employees_no_cycle() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.reports_to is not null and exists (
+    with recursive up as (
+      select id, reports_to from employees where id = new.reports_to
+      union
+      select e.id, e.reports_to from employees e join up on e.id = up.reports_to
+    ) select 1 from up where id = new.id
+  ) then raise exception 'Reporting line would form a cycle'; end if;
+  return new;
+end $$;
+create trigger employees_no_cycle before insert or update of reports_to on employees
+  for each row execute function employees_no_cycle();
 
 -- ── Chat ─────────────────────────────────────────────────────────────
 
@@ -566,9 +861,11 @@ language sql security definer set search_path = public as $$
   select id, null, body from channels where announcements
 $$;
 
+-- skipped per row inside import_holidays() (one summary post instead)
 create function announce_holiday() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  if coalesce(current_setting('app.bulk_holidays', true), '') = 'on' then return new; end if;
   perform post_announcement(format('Holiday added: %s on %s%s', new.name, to_char(new.date, 'FMDay, FMDD Mon YYYY'),
     coalesce(' (' || (select name from offices where id = new.office_id) || ' office only)', '')));
   return new;
@@ -588,8 +885,8 @@ create trigger announce_office after insert on offices for each row execute func
 create function announce_joiner() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if old.role is null and new.role in ('employee', 'manager') and new.joined_on >= current_date - 14 then
-    perform post_announcement(format('Please welcome %s%s%s to OpenBox Ventures LLP!', new.full_name,
+  if old.role is null and new.role in ('employee', 'manager', 'hr') and new.joined_on >= current_date - 14 then
+    perform post_announcement(format('Please welcome %s%s%s to Open Box Ventures LLP!', new.full_name,
       coalesce(', ' || new.designation, ''),
       coalesce(' in ' || (select name from departments where id = new.department_id), '')));
   end if;
@@ -597,15 +894,213 @@ begin
 end $$;
 create trigger announce_joiner after update of role on employees for each row execute function announce_joiner();
 
+-- ── Holiday import + daily reminders (birthdays, anniversaries, holiday eve) ──
+
+-- rows: [{date, name, office_id|null}]. All-or-nothing, exact duplicates (date+name+office) skipped.
+-- Returns the number inserted; posts one summary announcement.
+create function import_holidays(rows jsonb) returns int
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not is_admin() then raise exception 'Admins only'; end if;
+  perform set_config('app.bulk_holidays', 'on', true);
+  with src as (
+    select distinct (r->>'date')::date as date, trim(r->>'name') as name, nullif(r->>'office_id', '')::uuid as office_id
+    from jsonb_array_elements(rows) r
+  ), ins as (
+    insert into holidays (date, name, office_id)
+    select date, name, office_id from src s
+    where not exists (select 1 from holidays h where h.date = s.date and h.name = s.name and h.office_id is not distinct from s.office_id)
+    returning 1
+  )
+  select count(*) into n from ins;
+  perform set_config('app.bulk_holidays', 'off', true);
+  if n > 0 then
+    perform post_announcement(format('%s holiday%s added to the calendar. See Leave for the full list.', n, case when n = 1 then '' else 's' end));
+  end if;
+  return n;
+end $$;
+
+-- does annual date d fall on `day`? Feb 29 counts on Feb 28 in non-leap years
+create function reminder_match(d date, day date) returns boolean
+language sql immutable as $$
+  select to_char(d, 'MMDD') = to_char(day, 'MMDD')
+    or (to_char(d, 'MMDD') = '0229' and to_char(day, 'MMDD') = '0228'
+        and not ((extract(year from day)::int % 4 = 0 and extract(year from day)::int % 100 <> 0) or extract(year from day)::int % 400 = 0))
+$$;
+
+create function daily_reminders() returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  day date := (now() at time zone 'Asia/Kolkata')::date;
+  r record;
+  posted int := 0;
+begin
+  for r in
+    select e.id::text as ref, 'birthday' as kind, format('Happy birthday, %s!', e.full_name) as msg
+    from employees e join employee_profiles p on p.employee_id = e.id
+    where e.active and reminder_match(p.date_of_birth, day)
+    union all
+    select e.id::text, 'anniversary',
+      format('Congratulations %s on %s year%s at Open Box Ventures LLP!', e.full_name, y, case when y = 1 then '' else 's' end)
+    from employees e, lateral (select extract(year from day)::int - extract(year from e.joined_on)::int as y) t
+    where e.active and e.joined_on is not null and y >= 1 and reminder_match(e.joined_on, day)
+    union all
+    select h.id::text, 'holiday', format('Reminder: tomorrow is %s%s', h.name,
+      coalesce(' (' || (select name from offices where id = h.office_id) || ' office only)', ''))
+    from holidays h where h.date = day + 1
+  loop
+    insert into reminder_log (day, kind, ref) values (day, r.kind, r.ref) on conflict do nothing;
+    if found then perform post_announcement(r.msg); posted := posted + 1; end if;
+  end loop;
+  return posted;
+end $$;
+
+-- ── Payroll ──────────────────────────────────────────────────────────
+
+create function add_salary(p_emp uuid, p_ctc numeric, p_from date, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not (is_admin() or (my_role() = 'hr' and manages(p_emp))) then raise exception 'Not allowed'; end if;
+  if exists (select 1 from employees where id = p_emp and role = 'admin') then raise exception 'Admins have no salary'; end if;
+  insert into employee_salaries (employee_id, annual_ctc, effective_from, note, created_by)
+  values (p_emp, p_ctc, p_from, nullif(trim(p_note), ''), (select id from me()));
+exception when unique_violation then
+  raise exception 'There is already a revision effective that day';
+end $$;
+
+create function save_bank_details(p_emp uuid, p_holder text, p_account text, p_ifsc text, p_bank text, p_pan text default null, p_uan text default null)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not can_see_pay(p_emp) then raise exception 'Not allowed'; end if;
+  insert into employee_bank (employee_id, holder_name, account_number, ifsc, bank_name, pan, uan)
+  values (p_emp, trim(p_holder), trim(p_account), upper(trim(p_ifsc)), trim(p_bank), nullif(upper(trim(p_pan)), ''), nullif(trim(p_uan), ''))
+  on conflict (employee_id) do update set holder_name = excluded.holder_name, account_number = excluded.account_number,
+    ifsc = excluded.ifsc, bank_name = excluded.bank_name, pan = excluded.pan, uan = excluded.uan, updated_at = now();
+end $$;
+
+-- net / LOP amount are derived here so a sheet can't be inconsistent. days_in_month of the run's month.
+create function payroll_derive(l payroll_lines, m date) returns payroll_lines
+language plpgsql immutable as $$
+begin
+  l.lop_amount := round(l.gross / extract(day from (date_trunc('month', m) + interval '1 month - 1 day')) * l.lop_days, 2);
+  l.net := l.gross - l.lop_amount - l.employee_pf - l.employee_esi - l.pt - l.tds - l.other_deductions;
+  return l;
+end $$;
+
+-- p_lines: [{employee_id, basic, hra, special, gross, employee_pf, employer_pf, employee_esi, employer_esi, pt, tds, other_deductions, lop_days}]
+-- computed by the app's calculator (lib/payroll.ts); scope checked per employee here.
+create function create_payroll_run(p_month date, p_office uuid, p_lines jsonb) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+  m date := date_trunc('month', p_month)::date;
+  rid uuid;
+  x record;
+  l payroll_lines;
+begin
+  if not can_run_payroll(p_office) then raise exception 'Not allowed'; end if;
+  -- no overlap between an org-wide sheet and an office sheet for the same month
+  if exists (select 1 from payroll_runs where month = m and (office_id is null or p_office is null or office_id = p_office)) then
+    raise exception 'A salary sheet already exists for that month';
+  end if;
+  insert into payroll_runs (month, office_id, created_by) values (m, p_office, (select id from me())) returning id into rid;
+  for x in select * from jsonb_to_recordset(p_lines) as t(employee_id uuid, basic numeric, hra numeric, special numeric, gross numeric,
+      employee_pf numeric, employer_pf numeric, employee_esi numeric, employer_esi numeric, pt numeric, tds numeric, other_deductions numeric, lop_days numeric)
+  loop
+    if not exists (select 1 from employees e where e.id = x.employee_id and e.active and coalesce(e.role, '') <> 'admin'
+                   and (p_office is null or e.office_id = p_office) and (is_admin() or manages(e.id))) then
+      raise exception 'Employee out of scope';
+    end if;
+    l := row(null, rid, x.employee_id, x.basic, x.hra, x.special, x.gross, coalesce(x.employee_pf, 0), coalesce(x.employer_pf, 0),
+      coalesce(x.employee_esi, 0), coalesce(x.employer_esi, 0), coalesce(x.pt, 0), coalesce(x.tds, 0), coalesce(x.other_deductions, 0),
+      coalesce(x.lop_days, 0), 0, 0);
+    l := payroll_derive(l, m);
+    insert into payroll_lines (run_id, employee_id, basic, hra, special, gross, employee_pf, employer_pf, employee_esi, employer_esi, pt, tds,
+      other_deductions, lop_days, lop_amount, net)
+    values (rid, l.employee_id, l.basic, l.hra, l.special, l.gross, l.employee_pf, l.employer_pf, l.employee_esi, l.employer_esi, l.pt, l.tds,
+      l.other_deductions, l.lop_days, l.lop_amount, l.net);
+  end loop;
+  return rid;
+end $$;
+
+create function update_payroll_line(p_id uuid, p_lop numeric, p_tds numeric, p_other numeric) returns void
+language plpgsql security definer set search_path = public as $$
+declare r payroll_runs; l payroll_lines;
+begin
+  select * into l from payroll_lines where id = p_id;
+  select * into r from payroll_runs where id = l.run_id for update;
+  if r.id is null or not can_run_payroll(r.office_id) then raise exception 'Not allowed'; end if;
+  if r.status <> 'draft' then raise exception 'Only draft sheets can be edited'; end if;
+  l.lop_days := p_lop; l.tds := p_tds; l.other_deductions := p_other;
+  l := payroll_derive(l, r.month);
+  update payroll_lines set lop_days = l.lop_days, tds = l.tds, other_deductions = l.other_deductions, lop_amount = l.lop_amount, net = l.net
+  where id = p_id;
+end $$;
+
+create function submit_payroll_run(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare r payroll_runs;
+begin
+  select * into r from payroll_runs where id = p_id for update;
+  if r.id is null or not can_run_payroll(r.office_id) then raise exception 'Not allowed'; end if;
+  if r.status <> 'draft' then raise exception 'Only draft sheets can be submitted'; end if;
+  if not exists (select 1 from payroll_lines where run_id = r.id) then raise exception 'Sheet is empty'; end if;
+  update payroll_runs set status = 'submitted', submitted_at = now(), review_note = null where id = r.id;
+end $$;
+
+-- admin only: approve (locks the sheet) or send back to draft with a note
+create function review_payroll_run(p_id uuid, p_approve boolean, p_note text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare r payroll_runs;
+begin
+  if not is_admin() then raise exception 'Only admin can approve payroll'; end if;
+  select * into r from payroll_runs where id = p_id for update;
+  if r.id is null or r.status <> 'submitted' then raise exception 'Sheet is not awaiting approval'; end if;
+  if not p_approve and coalesce(trim(p_note), '') = '' then raise exception 'A note is required when rejecting'; end if;
+  update payroll_runs set status = case when p_approve then 'approved' else 'draft' end::payroll_status,
+    reviewed_by = (select id from me()), reviewed_at = now(), review_note = case when p_approve then null else trim(p_note) end
+  where id = r.id;
+end $$;
+
+create function delete_payroll_run(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare r payroll_runs;
+begin
+  select * into r from payroll_runs where id = p_id for update;
+  if r.id is null or not can_run_payroll(r.office_id) then raise exception 'Not allowed'; end if;
+  if r.status <> 'draft' then raise exception 'Only draft sheets can be deleted'; end if;
+  delete from payroll_runs where id = r.id;
+end $$;
+
+-- ── Rate limiting ──
+
+-- true = allowed. Fixed window of p_window_s seconds, p_max hits per key. One upsert, row-locked, so concurrent hits count.
+-- ponytail: one row per user, never pruned; add a cleanup if keys ever stop being per-employee.
+create function hit_rate_limit(p_key text, p_max int, p_window_s int) returns boolean
+language sql volatile security definer set search_path = public as $$
+  insert into rate_limits as r values (p_key, now(), 1)
+  on conflict (key) do update set
+    window_start = case when r.window_start < now() - make_interval(secs => p_window_s) then now() else r.window_start end,
+    hits         = case when r.window_start < now() - make_interval(secs => p_window_s) then 1 else r.hits + 1 end
+  returning hits <= p_max;
+$$;
+
 -- ── Storage (private; files served via signed URLs after an RLS-checked lookup) ──
 
 do $$ begin
   if exists (select 1 from pg_namespace where nspname = 'storage') then
     -- browser uploads directly via signed URL, so the bucket enforces the 10 MB cap
-    insert into storage.buckets (id, name, public, file_size_limit) values
-      ('leave-docs', 'leave-docs', false, 10485760),
-      ('attachments', 'attachments', false, 10485760)
-    on conflict (id) do update set file_size_limit = excluded.file_size_limit;
+    -- MIME allowlist: no html/svg/xml/js, so nothing uploaded can render as a page from the storage origin
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+    select id, id, false, 10485760, array[
+      'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/heic', 'image/heif',
+      'video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v',
+      'application/pdf', 'text/plain', 'text/csv', 'application/zip', 'application/octet-stream',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation']
+    from unnest(array['leave-docs', 'attachments']) id
+    on conflict (id) do update set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
   end if;
 end $$;
 
@@ -630,12 +1125,17 @@ create policy add on attendance for insert to authenticated with check (manages(
 -- system-only helper: never callable through the API
 revoke execute on function post_announcement(text) from public, anon, authenticated;
 revoke execute on function orphan_uploads(uuid) from public, anon, authenticated;
+revoke execute on function daily_reminders() from public, anon, authenticated; -- cron route (service key) only
+revoke execute on function hit_rate_limit(text, int, int) from public, anon, authenticated; -- server key only
 
 -- updates limited to the columns the app actually changes
-revoke update on attendance, leave_requests, channel_members, messages from anon, authenticated;
+-- (leave_requests, regularizations, payroll, reminder_log: no direct writes at all, functions only)
+revoke update on attendance, leave_requests, channel_members, messages, todos from anon, authenticated;
 grant update (mode, check_in_at, check_out_at, note) on attendance to authenticated;
-grant update (status, reviewed_by, reviewed_at, review_note) on leave_requests to authenticated;
 grant update (last_read_at) on channel_members to authenticated;
+grant update (title, due_on, done_at) on todos to authenticated;
+revoke insert, update, delete on regularizations, employee_salaries, employee_bank, payroll_runs, payroll_lines from anon, authenticated;
+revoke all on reminder_log, rate_limits from anon, authenticated;
 
 -- signed-out requests get nothing
 revoke all on all tables in schema public from anon;

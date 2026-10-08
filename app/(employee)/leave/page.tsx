@@ -1,11 +1,11 @@
-import { CalendarDays, CalendarPlus, FileText, PartyPopper, Send, X } from "lucide-react";
+import { CalendarDays, CalendarPlus, FileText, PartyPopper, Send, Upload, X } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { LEAVE_TONE, fmtDate } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { PageHeader } from "@/components/shell";
-import { applyLeave, cancelLeave } from "../actions";
+import { applyLeave, cancelLeave, updateLeaveDoc } from "../actions";
 
 export const metadata = { title: "Leave" };
 
@@ -98,11 +98,18 @@ export default async function Leave() {
                       <td>{fmtDate(r.start_date)}{r.end_date !== r.start_date && ` - ${fmtDate(r.end_date)}`}</td>
                       <td className="tabular-nums">{Number(r.days)}</td>
                       <td>
-                        <span className={`badge capitalize ${LEAVE_TONE[r.status]}`}>{r.status}</span>
+                        <span className={`badge capitalize ${LEAVE_TONE[r.status]}`}>{r.status.replace("_", " ")}</span>
                         {r.doc_path && <a href={`/files/leave/${r.id}`} target="_blank" className="ml-2 inline-flex text-muted hover:text-text" title="Document"><FileText className="size-4" /></a>}
                         {r.review_note && <div className="mt-1 text-xs text-muted">{r.review_note}</div>}
                       </td>
-                      <td className="text-right">
+                      <td className="space-y-1 text-right">
+                        {r.status !== "rejected" && r.status !== "cancelled" && (
+                          <ActionForm action={updateLeaveDoc} className="inline-flex items-center gap-1">
+                            <input type="hidden" name="id" value={r.id} />
+                            <AttachInput name="doc" bucket="leave-docs" />
+                            <button className="btn btn-ghost"><Upload /> {r.doc_path ? "Replace doc" : "Add doc"}</button>
+                          </ActionForm>
+                        )}
                         {r.status === "pending" && (
                           <ActionForm action={cancelLeave} confirm="Cancel this request?">
                             <input type="hidden" name="id" value={r.id} />

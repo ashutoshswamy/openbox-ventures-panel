@@ -3,10 +3,10 @@ import { SignIn } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import { AuthFrame } from "@/components/auth-frame";
 
-const title = "Sign in to the Open Box Ventures LLP Portal";
-const description = "Sign in to the Open Box Ventures LLP employee portal for attendance, leave, team chat and video meetings.";
+const title = "Sign in to the Open Box Ventures LLP Panel";
+const description = "Sign in to the Open Box Ventures LLP employee panel for attendance, leave, payroll, HR, team chat and video meetings.";
 
-// The one indexable page: what people find when they search for the portal.
+// The one indexable page: what people find when they search for the panel.
 export const metadata: Metadata = {
   title: { absolute: title },
   description,

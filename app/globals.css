@@ -187,3 +187,18 @@ body {
   .btn, .input:not(textarea):not([multiple]) { min-height: 2.75rem; }
   .btn-icon { min-width: 2.75rem; }
 }
+
+/* org chart: CSS-only connectors */
+.org ul { display: flex; justify-content: center; padding-top: 1.25rem; position: relative; }
+.org li { position: relative; display: flex; flex-direction: column; align-items: center; padding: 1.25rem 0.5rem 0; }
+.org > ul { padding-top: 0; }
+.org > ul > li { padding-top: 0; }
+.org li::before, .org li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 1.25rem; border-top: 1px solid var(--line); }
+.org li::after { right: auto; left: 50%; border-left: 1px solid var(--line); }
+.org li:only-child::before, .org li:only-child::after { border-top: 0; }
+.org li:only-child::after { border-left: 1px solid var(--line); }
+.org li:first-child::before, .org li:last-child::after { border-top: 0; }
+.org li:last-child::before { border-right: 1px solid var(--line); }
+.org > ul > li::before, .org > ul > li::after { display: none; }
+.org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 1.25rem; border-left: 1px solid var(--line); }
+.org-card { display: flex; align-items: center; gap: 0.625rem; min-width: 11rem; max-width: 14rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); }

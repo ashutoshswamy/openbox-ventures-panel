@@ -36,7 +36,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
             <Logo size={36} />
             <span className="font-semibold tracking-tight">Open Box Ventures LLP</span>
           </div>
-          <h1 className="mb-6 text-sm font-medium text-muted">Open Box Ventures LLP employee portal</h1>
+          <h1 className="mb-6 text-sm font-medium text-muted">Open Box Ventures LLP employee panel</h1>
           {children}
         </div>
       </section>

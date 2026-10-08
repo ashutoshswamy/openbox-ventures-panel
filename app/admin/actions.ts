@@ -101,6 +101,12 @@ async function placement(fd: FormData) {
   return { department_id, office_id: data?.office_id ?? null };
 }
 
+const hrFields = (fd: FormData) => ({
+  employee_code: str(fd, "employee_code"),
+  alias_name: str(fd, "alias_name"),
+  company_phone: str(fd, "company_phone"),
+});
+
 export async function inviteEmployee(fd: FormData) {
   await requireAdmin();
   try {
@@ -110,9 +116,10 @@ export async function inviteEmployee(fd: FormData) {
       email,
       full_name: str(fd, "full_name"),
       designation: str(fd, "designation"),
+      ...hrFields(fd),
       ...(await placement(fd)),
     });
-    if (error) return error.code === "23505" ? "Employee with this email already exists" : error.message;
+    if (error) return error.code === "23505" ? (error.message.includes("employee_code") ? "Employee code already in use" : "Employee with this email already exists") : error.message;
     await invite(email);
   } catch (e) {
     return `Saved, but invite failed: ${(e as Error).message}`;
@@ -127,11 +134,11 @@ export async function updateEmployee(fd: FormData) {
     const sb = db();
     const { data: emp, error } = await sb
       .from("employees")
-      .update({ full_name: str(fd, "full_name"), designation: str(fd, "designation"), joined_on: str(fd, "joined_on"), ...(await placement(fd)) })
+      .update({ full_name: str(fd, "full_name"), designation: str(fd, "designation"), joined_on: str(fd, "joined_on"), exit_date: str(fd, "exit_date"), reports_to: str(fd, "reports_to"), ...hrFields(fd), ...(await placement(fd)) })
       .eq("id", id)
       .select("email, clerk_user_id")
       .single();
-    if (error) return error.message;
+    if (error) return error.code === "23505" ? "Employee code already in use" : error.message;
     const r = role(fd);
     // admins aren't part of the workforce: no office/department (keeps them out of channels, headcounts, manager scope)
     if (r === "admin") await sb.from("employees").update({ office_id: null, department_id: null, designation: null }).eq("id", id);
@@ -205,17 +212,20 @@ export async function deleteAttendance(fd: FormData) {
 // ── Leave ──
 
 export async function reviewLeave(fd: FormData) {
-  const me = await requireStaff();
+  await requireStaff(); // review_leave() enforces manager → HR/admin order
   const status = str(fd, "status");
   if (status !== "approved" && status !== "rejected") return "Invalid decision";
-  const { data, error } = await db()
-    .from("leave_requests")
-    .update({ status, reviewed_by: me.id, reviewed_at: new Date().toISOString(), review_note: str(fd, "review_note") })
-    .eq("id", str(fd, "id"))
-    .eq("status", "pending")
-    .select("id");
+  const { error } = await db().rpc("review_leave", { p_id: str(fd, "id"), p_approve: status === "approved", p_note: str(fd, "review_note") });
   if (error) return error.message;
-  if (!data.length) return "Request not found or already reviewed";
+  done();
+}
+
+export async function reviewRegularization(fd: FormData) {
+  await requireStaff(); // review_regularization() limits it to HR (own office) + admin
+  const status = str(fd, "status");
+  if (status !== "approved" && status !== "rejected") return "Invalid decision";
+  const { error } = await db().rpc("review_regularization", { p_id: str(fd, "id"), p_approve: status === "approved", p_note: str(fd, "review_note") });
+  if (error) return error.message;
   done();
 }
 

@@ -26,6 +26,19 @@ export async function checkOut() {
   done();
 }
 
+export async function requestRegularization(fd: FormData) {
+  await requireMe();
+  const { error } = await db().rpc("request_regularization", {
+    p_date: str(fd, "date"),
+    p_mode: str(fd, "mode") ?? "office",
+    p_in: str(fd, "check_in"),
+    p_out: str(fd, "check_out"),
+    p_reason: str(fd, "reason"),
+  });
+  if (error) return error.message;
+  done();
+}
+
 // ── Leave ──
 
 export async function applyLeave(fd: FormData) {
@@ -38,6 +51,13 @@ export async function applyLeave(fd: FormData) {
     p_reason: str(fd, "reason"),
     p_doc: str(fd, "doc"), // already uploaded by AttachInput; apply_leave only accepts your own paths
   });
+  if (error) return error.message;
+  done();
+}
+
+export async function updateLeaveDoc(fd: FormData) {
+  await requireMe();
+  const { error } = await db().rpc("update_leave_doc", { p_id: str(fd, "id"), p_doc: str(fd, "doc") });
   if (error) return error.message;
   done();
 }

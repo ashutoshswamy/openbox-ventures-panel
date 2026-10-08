@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Hourglass, Megaphone } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Hourglass, Megaphone } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { fmtDate, greeting, splitPost } from "@/lib/util";
+import { fmtDate, greeting, splitPost, todayIn } from "@/lib/util";
+import { todaysCelebrations } from "@/lib/pending";
 import { Today } from "@/components/today";
 import { PageHeader } from "@/components/shell";
 import { Attachment } from "@/components/attachment";
@@ -12,17 +13,39 @@ export const metadata = { title: "Dashboard" };
 export default async function Dashboard() {
   const me = await employeePage();
   const sb = db();
-  const [{ data: balances }, { data: news }, { count: pending }] = await Promise.all([
+  const today = todayIn();
+  const week = new Date(Date.parse(today) + 7 * 864e5).toISOString().slice(0, 10);
+  const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations] = await Promise.all([
     sb.from("leave_balances").select("leave_type_id, name, balance, entitled, used").eq("employee_id", me.id).order("name"),
     sb.from("messages").select("id, body, attachment_path, created_at, channel:channels!inner(announcements)").eq("channel.announcements", true).order("created_at", { ascending: false }).limit(4),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", me.id).eq("status", "pending"),
+    sb.from("todos").select("id, title, due_on").eq("owner_id", me.id).is("done_at", null).lte("due_on", today).order("due_on"),
+    sb.from("holidays").select("name, date, office_id").gte("date", today).lte("date", week).order("date"),
+    todaysCelebrations(),
   ]);
+  const nextHoliday = holidays?.find((h) => !h.office_id || h.office_id === me.office_id);
+  const reminders = [
+    ...(due ?? []).map((t) => ({ key: t.id, href: "/todos", text: `${t.due_on! < today ? "Overdue" : "Due today"}: ${t.title}` })),
+    ...celebrations.map((c) => ({ key: c, href: undefined, text: c })),
+    ...(nextHoliday ? [{ key: "holiday", href: "/leave", text: `Holiday: ${nextHoliday.name}, ${fmtDate(nextHoliday.date)}` }] : []),
+  ];
 
   return (
     <>
       <PageHeader title={`${greeting()}, ${me.full_name.split(" ")[0]}`} sub="Here's your day at a glance." />
       <div className="space-y-6">
         <Today employeeId={me.id} officeId={me.office_id} />
+
+        {reminders.length > 0 && (
+          <section className="card">
+            <h2 className="h2"><BellRing /> Reminders</h2>
+            <ul className="divide-y divide-line text-sm">
+              {reminders.map((r) => (
+                <li key={r.key} className="py-2 first:pt-0 last:pb-0">{r.href ? <Link href={r.href} className="hover:underline">{r.text}</Link> : r.text}</li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
           <section className="card">

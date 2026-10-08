@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:rls": "node supabase/tests/rls.test.mjs",
-    "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
+    "reset-clerk": "node --env-file=.env.local scripts/reset-clerk.mjs",
+    "create-admin":"node --env-file=.env.local scripts/create-admin.mjs",
     "demo:seed": "node --env-file=.env.local scripts/demo-data.mjs seed",
     "demo:unseed": "node --env-file=.env.local scripts/demo-data.mjs unseed"
   },

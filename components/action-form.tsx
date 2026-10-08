@@ -36,7 +36,8 @@ export function ActionForm({
         const form = e.currentTarget;
         const fd = new FormData(form, (e.nativeEvent as SubmitEvent).submitter); // keeps clicked button's name/value
         start(async () => {
-          const err = await action(fd);
+          // thrown = auth / rate limit / crash (message hidden in production builds)
+          const err = await action(fd).catch(() => "Something went wrong, or too many requests. Wait a moment and try again.");
           setError(err || null);
           setOk(!err);
           if (!err && !keep) form.reset();

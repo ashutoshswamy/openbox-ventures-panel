@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Hourglass, Inbox, Plus, House, Palmtree, TriangleAlert, UserX } from "lucide-react";
+import { ArrowRight, Building2, Clock, Hourglass, Inbox, Plus, House, Palmtree, TriangleAlert, UserX } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { todayIn } from "@/lib/util";
+import { pendingCounts } from "@/lib/pending";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Overview" };
@@ -28,6 +29,7 @@ export default async function AdminHome() {
     sb.from("leave_requests").select("employee_id, start_date, end_date").eq("status", "approved").lte("start_date", dates.at(-1) ?? todayIn()).gte("end_date", dates[0] ?? todayIn()),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending").neq("employee_id", me.id),
   ]);
+  const stale = await pendingCounts(sb, me.id, 24);
   const { count: openIssues } = me.role === "admin" ? await sb.from("issues").select("id", { count: "exact", head: true }).eq("status", "open") : { count: 0 };
 
   const stats = (offices ?? []).map((o) => {
@@ -68,6 +70,16 @@ export default async function AdminHome() {
             <span className="flex-1"><b>{pending}</b> leave request{pending > 1 ? "s" : ""} waiting for review</span>
             <ArrowRight className="size-5 text-muted" />
           </Link>
+        )}
+
+        {(stale.leave > 0 || stale.regularizations > 0) && (
+          <section className="card border-amber/30">
+            <h2 className="h2"><Clock /> Needs attention <span className="text-sm font-normal text-muted">waiting over 24 hours</span></h2>
+            <ul className="space-y-1 text-sm">
+              {stale.leave > 0 && <li><Link href="/admin/leave" className="hover:underline"><b>{stale.leave}</b> leave request{stale.leave > 1 ? "s" : ""}</Link></li>}
+              {stale.regularizations > 0 && <li><Link href="/admin/attendance" className="hover:underline"><b>{stale.regularizations}</b> attendance regularization{stale.regularizations > 1 ? "s" : ""}</Link></li>}
+            </ul>
+          </section>
         )}
 
         {!!openIssues && (

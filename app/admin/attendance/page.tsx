@@ -1,11 +1,11 @@
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { DEFAULT_TZ, fmtTime, todayIn } from "@/lib/util";
-import { Building2, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX } from "lucide-react";
+import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
+import { Building2, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { PageHeader } from "@/components/shell";
-import { deleteAttendance, saveAttendance } from "../actions";
+import { deleteAttendance, reviewRegularization, saveAttendance } from "../actions";
 
 export const metadata = { title: "Attendance" };
 
@@ -21,12 +21,14 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
   let emps = sb.from("employees").select("id, full_name, office_id, avatar_url").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
   if (office) emps = emps.eq("office_id", office);
-  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }] = await Promise.all([
+  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, timezone").order("name"),
     sb.from("attendance_report").select("*").eq("date", date),
     sb.from("leave_requests").select("employee_id, type:leave_types(name)").eq("status", "approved").lte("start_date", date).gte("end_date", date),
+    sb.from("regularizations").select("*, employee:employees!regularizations_employee_id_fkey(full_name, avatar_url, office_id)").eq("status", "pending").neq("employee_id", me.id).order("date"),
   ]);
+  const canReview = me.role === "hr" || me.role === "admin"; // review_regularization() enforces this too
   const tzOf = (officeId: string | null) => offices?.find((o) => o.id === officeId)?.timezone ?? DEFAULT_TZ;
   const recOf = (id: string) => rows?.find((r) => r.employee_id === id);
   const leaveOf = (id: string) => leaves?.find((l) => l.employee_id === id);
@@ -48,6 +50,39 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
         )}
         <button className="btn">Show</button>
       </form>
+
+      {!!regs?.length && (
+        <section className="card">
+          <h2 className="h2"><ClockAlert /> Regularization requests</h2>
+          <ul className="divide-y divide-line">
+            {regs.map((r) => {
+              const tz = tzOf(r.employee?.office_id ?? null);
+              return (
+                <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <Avatar name={r.employee?.full_name ?? "?"} src={r.employee?.avatar_url} size="size-8 text-xs" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{r.employee?.full_name}</div>
+                    <div className="text-sm text-muted tabular-nums">
+                      {fmtDate(r.date)} · {r.mode === "wfh" ? "Home" : "Office"} · {fmtTime(r.check_in_at, tz)} - {fmtTime(r.check_out_at, tz)}
+                    </div>
+                    <div className="text-sm">{r.reason}</div>
+                  </div>
+                  {canReview ? (
+                    <ActionForm action={reviewRegularization} className="flex flex-wrap gap-2">
+                      <input type="hidden" name="id" value={r.id} />
+                      <input name="review_note" placeholder="Note (optional)" className="input w-auto min-w-40" />
+                      <button name="status" value="rejected" className="btn btn-danger"><X /> Reject</button>
+                      <button name="status" value="approved" className="btn btn-primary"><Check /> Approve</button>
+                    </ActionForm>
+                  ) : (
+                    <span className="badge badge-amber">Waiting for HR</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="card overflow-x-auto">
         <table className="table">

@@ -1,9 +1,13 @@
-import { Building2, CalendarX2, House, TriangleAlert } from "lucide-react";
+import { Building2, CalendarX2, ClockAlert, House, Send, TriangleAlert } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { fmtDate, fmtTime, todayIn } from "@/lib/util";
+import { LEAVE_TONE, fmtDate, fmtTime, todayIn } from "@/lib/util";
+import { ActionForm } from "@/components/action-form";
 import { Today } from "@/components/today";
 import { PageHeader } from "@/components/shell";
+import { requestRegularization } from "../actions";
+
+const REG_LIMIT = 5; // keep in step with request_regularization()
 
 export const metadata = { title: "Attendance" };
 
@@ -13,13 +17,11 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
   const [y, m] = month.split("-").map(Number);
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 
-  const { data: rows } = await db()
-    .from("attendance_report")
-    .select("*")
-    .eq("employee_id", me.id)
-    .gte("date", `${month}-01`)
-    .lte("date", end)
-    .order("date", { ascending: false });
+  const [{ data: rows }, { data: regs }] = await Promise.all([
+    db().from("attendance_report").select("*").eq("employee_id", me.id).gte("date", `${month}-01`).lte("date", end).order("date", { ascending: false }),
+    db().from("regularizations").select("*").eq("employee_id", me.id).gte("date", `${month}-01`).lte("date", end).order("date", { ascending: false }),
+  ]);
+  const regUsed = regs?.filter((r) => r.status === "pending" || r.status === "approved").length ?? 0;
 
   const stats = [
     ["Days present", rows?.length ?? 0],
@@ -77,6 +79,44 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
             </div>
           ) : (
             <p className="empty"><CalendarX2 /> No attendance recorded this month.</p>
+          )}
+        </section>
+
+        <section className="card">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="h2 mb-0"><ClockAlert /> Regularization</h2>
+            <span className="text-sm text-muted tabular-nums">{regUsed} / {REG_LIMIT} used this month · approved by HR</span>
+          </div>
+          <ActionForm action={requestRegularization} className="mb-6 grid gap-4 sm:grid-cols-4">
+            <label className="field">Date<input type="date" name="date" required max={todayIn()} className="input" /></label>
+            <label className="field">Where
+              <select name="mode" className="input"><option value="office">Office</option><option value="wfh">Home</option></select>
+            </label>
+            <label className="field">In<input type="time" name="check_in" required className="input" /></label>
+            <label className="field">Out<input type="time" name="check_out" required className="input" /></label>
+            <label className="field sm:col-span-3">Reason<input name="reason" required maxLength={500} placeholder="Forgot to check in, network issue..." className="input" /></label>
+            <div className="flex items-end"><button className="btn btn-primary w-full"><Send /> Request</button></div>
+          </ActionForm>
+          {!!regs?.length && (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead><tr><th>Date</th><th>In</th><th>Out</th><th>Reason</th><th>Status</th></tr></thead>
+                <tbody>
+                  {regs.map((r) => (
+                    <tr key={r.id}>
+                      <td className="font-medium">{fmtDate(r.date)}</td>
+                      <td className="tabular-nums">{fmtTime(r.check_in_at)}</td>
+                      <td className="tabular-nums">{fmtTime(r.check_out_at)}</td>
+                      <td className="text-sm">{r.reason}</td>
+                      <td>
+                        <span className={`badge capitalize ${LEAVE_TONE[r.status]}`}>{r.status}</span>
+                        {r.review_note && <div className="mt-1 text-xs text-muted">{r.review_note}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
