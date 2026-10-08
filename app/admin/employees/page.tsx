@@ -52,8 +52,6 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
         </select>
       </label>
       <label className="field">Designation<input name="designation" defaultValue={e?.designation ?? ""} className="input" /></label>
-      <label className="field">Employee code<input name="employee_code" defaultValue={e?.employee_code ?? ""} className="input" /></label>
-      <label className="field">Alias name<input name="alias_name" defaultValue={e?.alias_name ?? ""} className="input" /></label>
       <label className="field">Company mobile<input name="company_phone" type="tel" defaultValue={e?.company_phone ?? ""} className="input" /></label>
       {e && people && (
         <label className="field">Reports to

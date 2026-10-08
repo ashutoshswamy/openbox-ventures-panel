@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
+import { ArrowLeft, Bot, Building2, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
@@ -86,15 +86,15 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         ) : channel.type === "dm" ? (
           <Avatar name={name} src={channel.avatar_url} size="size-9" />
         ) : (
-          <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted">{channel.type === "department" ? <Users className="size-4" /> : <Hash className="size-4" />}</span>
+          <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted">{channel.type === "department" ? <Users className="size-4" /> : channel.type === "office" ? <Building2 className="size-4" /> : channel.type === "global" ? <Globe className="size-4" /> : <Hash className="size-4" />}</span>
         )}
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-semibold">{name}</h2>
           <p className="text-xs text-muted">
-            {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : "Group"}
+            {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
-        {!channel.announcements && <CallButton channelId={id} name={me.full_name} />}
+        {!channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
       <ol className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-y-auto px-4 py-4 md:px-6">

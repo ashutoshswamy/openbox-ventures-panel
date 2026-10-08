@@ -22,6 +22,8 @@ export async function saveProfile(fd: FormData) {
   const age = (Date.now() - dob.getTime()) / (365.25 * 864e5);
   if (!(age >= 14 && age <= 100)) return "Check your date of birth";
   for (const k of ["phone", "emergency_phone"]) if (!PHONE.test(str(fd, k)!)) return "Phone numbers should be 7-15 digits";
+  const alias = str(fd, "alias_name");
+  if (alias && alias.length > 60) return "Alias name is too long";
   const email = str(fd, "personal_email");
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return "Personal email doesn't look right";
 
@@ -42,7 +44,7 @@ export async function saveProfile(fd: FormData) {
     updated_at: new Date().toISOString(),
   });
   if (error) return error.message;
-  await sb.from("employees").update({ full_name: str(fd, "full_name") }).eq("id", me.id);
+  await sb.from("employees").update({ full_name: str(fd, "full_name"), alias_name: alias }).eq("id", me.id);
 
   revalidatePath("/", "layout");
   if (!me.onboarded) redirect("/"); // routing takes it from here (pending role → /pending)

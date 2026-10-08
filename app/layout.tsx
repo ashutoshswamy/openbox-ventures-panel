@@ -43,7 +43,10 @@ export const viewport: Viewport = {
 };
 
 // Runs before first paint: saved choice, else OS setting. Avoids a flash of the wrong theme.
-const themeScript = `try{var t=localStorage.getItem("theme");document.documentElement.dataset.theme=t==="light"||t==="dark"?t:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}`;
+// Site-wide: the 2nd click of a double-click on anything clickable is dropped (no double submits / double calls / toggling twice).
+// ponytail: e.detail = click count; keyboard activations have detail 0 so they always pass.
+const noDoubleClick = `addEventListener("click",function(e){if(e.detail>1&&e.target.closest&&e.target.closest("button,a,summary,label,[role=button],input[type=submit],input[type=checkbox],input[type=radio]")){e.preventDefault();e.stopPropagation()}},true);`;
+const themeScript = noDoubleClick + `try{var t=localStorage.getItem("theme");document.documentElement.dataset.theme=t==="light"||t==="dark"?t:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch(e){}`;
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const nonce = (await headers()).get("x-nonce") ?? undefined; // CSP nonce from proxy.ts

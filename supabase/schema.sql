@@ -8,7 +8,7 @@
 create type attendance_mode as enum ('office', 'wfh');
 create type leave_status as enum ('pending', 'manager_approved', 'approved', 'rejected', 'cancelled');
 create type leave_accrual as enum ('yearly', 'monthly');
-create type channel_type as enum ('dm', 'group', 'department');
+create type channel_type as enum ('dm', 'group', 'department', 'office', 'global'); -- office: one per office; global: company-wide General
 create type issue_status as enum ('open', 'resolved');
 create type payroll_status as enum ('draft', 'submitted', 'approved');
 
@@ -50,8 +50,8 @@ create table employees (
   designation   text,
   joined_on     date,
   exit_date     date check (exit_date >= joined_on),
-  employee_code text unique check (employee_code = trim(employee_code) and employee_code <> ''),
-  alias_name    text,
+  employee_code text unique check (employee_code = trim(employee_code) and employee_code <> ''), -- auto OBV001, OBV002… (default below)
+  alias_name    text check (length(alias_name) <= 60), -- set by the employee on their profile
   company_phone text,
   reports_to    uuid references employees on delete set null check (reports_to <> id), -- org chart
   active        boolean not null default true,
@@ -60,6 +60,16 @@ create table employees (
   avatar_url    text, -- copy of the Clerk profile photo (null = none), kept in sync by the app
   created_at    timestamptz not null default now()
 );
+
+-- Next code = highest OBVnnn + 1, so failed inserts leave no gaps (a sequence would).
+-- ponytail: two invites in the same instant can race to one code; the unique index rejects the second, re-send it.
+create function next_employee_code() returns text
+language sql volatile set search_path = public as $$
+  select 'OBV' || lpad(n::text, greatest(3, length(n::text)), '0')
+  from (select coalesce(max(substring(employee_code from 4)::int), 0) + 1 as n
+        from employees where employee_code ~ '^OBV[0-9]+$') s
+$$;
+alter table employees alter column employee_code set default next_employee_code();
 
 -- ── Attendance ───────────────────────────────────────────────────────
 
@@ -155,11 +165,14 @@ create table channels (
   name          text check (length(name) <= 100),
   type          channel_type not null,
   department_id uuid references departments on delete cascade,
+  office_id     uuid references offices on delete cascade, -- type = 'office'
   created_by    uuid references employees on delete set null,
   announcements boolean not null default false, -- the single company-wide Announcements channel
   created_at    timestamptz not null default now()
 );
 create unique index channels_announcements_key on channels (announcements) where announcements;
+create unique index channels_office_key on channels (office_id) where type = 'office';
+create unique index channels_global_key on channels (type) where type = 'global';
 
 create table channel_members (
   channel_id   uuid not null references channels on delete cascade,
@@ -373,7 +386,7 @@ language sql stable security definer set search_path = public as $$
   select is_admin() or (my_role() = 'hr' and p_office is not null and p_office = (select office_id from me()))
 $$;
 
--- department channels: everyone in the department is a member implicitly
+-- implicit members: department / office channels (own one), global + announcements (any active employee)
 create function is_member(ch uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from channel_members
@@ -381,8 +394,10 @@ language sql stable security definer set search_path = public as $$
       or exists (select 1 from channels c
                  where c.id = ch and c.type = 'department'
                    and c.department_id = (select department_id from me()))
-      -- everyone reads the company Announcements channel
-      or ((select id from me()) is not null and exists (select 1 from channels c where c.id = ch and c.announcements))
+      or exists (select 1 from channels c
+                 where c.id = ch and c.type = 'office'
+                   and c.office_id = (select office_id from me()))
+      or ((select id from me()) is not null and exists (select 1 from channels c where c.id = ch and (c.announcements or c.type = 'global')))
 $$;
 
 -- ── RLS ──────────────────────────────────────────────────────────────
@@ -454,6 +469,16 @@ create policy add on channel_members  for insert to authenticated with check (
   (is_admin() or exists (select 1 from channels c where c.id = channel_id and c.type = 'group' and c.created_by = (select id from me())))
   and exists (select 1 from employees e where e.id = employee_id and e.role is distinct from 'admin') -- admins aren't chat members (and are invisible to non-admins)
 );
+-- admin-made group chats: admins see/remove members, rename, delete (plain groups only; admins aren't members)
+create policy admin_read on channel_members for select to authenticated
+  using (is_admin() and exists (select 1 from channels c where c.id = channel_id and c.type = 'group' and not c.announcements));
+create policy admin_remove on channel_members for delete to authenticated
+  using (is_admin() and exists (select 1 from channels c where c.id = channel_id and c.type = 'group' and not c.announcements));
+create policy admin_rename on channels for update to authenticated
+  using (is_admin() and type = 'group' and not announcements)
+  with check (type = 'group' and not announcements and department_id is null and office_id is null);
+create policy admin_delete on channels for delete to authenticated
+  using (is_admin() and type = 'group' and not announcements);
 create policy mark_read on channel_members for update to authenticated
   using (employee_id = (select id from me())) with check (employee_id = (select id from me()));
 create policy read on messages for select to authenticated using (is_member(channel_id));
@@ -823,11 +848,34 @@ end $$;
 create trigger department_channel_rename after update of name on departments
 for each row when (old.name is distinct from new.name) execute function rename_department_channel();
 
--- implicit members (department, announcements) store their read marker by joining once
+-- same for offices
+create function create_office_channel() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into channels (name, type, office_id) values (new.name, 'office', new.id);
+  return new;
+end $$;
+
+create trigger office_channel after insert on offices
+for each row execute function create_office_channel();
+
+create function rename_office_channel() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update channels set name = new.name where type = 'office' and office_id = new.id;
+  return new;
+end $$;
+
+create trigger office_channel_rename after update of name on offices
+for each row when (old.name is distinct from new.name) execute function rename_office_channel();
+
+-- implicit members (department, office, global, announcements) store their read marker by joining once
 create policy join_implicit on channel_members for insert to authenticated with check (
   employee_id = (select id from me()) and exists (
     select 1 from channels c where c.id = channel_id
-      and (c.announcements or (c.type = 'department' and c.department_id = (select department_id from me()))))
+      and (c.announcements or c.type = 'global'
+        or (c.type = 'department' and c.department_id = (select department_id from me()))
+        or (c.type = 'office' and c.office_id = (select office_id from me()))))
 );
 
 -- ── Calls: the starter is the first participant; heartbeats extend your time in the call ──
@@ -838,7 +886,8 @@ declare
   my uuid := (select id from me());
   c uuid;
 begin
-  if my is null or not is_member(ch) or exists (select 1 from channels where id = ch and announcements) then
+  -- no calls in Announcements or the company-wide chat (would ring everyone)
+  if my is null or not is_member(ch) or exists (select 1 from channels where id = ch and (announcements or type = 'global')) then
     raise exception 'Not allowed';
   end if;
   insert into calls (channel_id, room, started_by) values (ch, p_room, my) returning id into c;
@@ -895,7 +944,7 @@ begin
 end $$;
 
 create function my_channels()
-returns table (id uuid, type channel_type, name text, unread bigint, last_at timestamptz, announcements boolean, avatar_url text)
+returns table (id uuid, type channel_type, name text, unread bigint, last_at timestamptz, announcements boolean, avatar_url text, office_id uuid, office_name text)
 language sql stable set search_path = public as $$
   select c.id, c.type,
     case when c.type = 'dm' then (
@@ -910,8 +959,11 @@ language sql stable set search_path = public as $$
     case when c.type = 'dm' then (
       select e.avatar_url from channel_members cm join employees e on e.id = cm.employee_id
       where cm.channel_id = c.id and cm.employee_id <> (select id from me()) limit 1)
-    end
+    end,
+    o.id, o.name -- sidebar nests department channels under their office
   from channels c
+  left join departments d on d.id = c.department_id
+  left join offices o on o.id = coalesce(c.office_id, d.office_id)
   left join channel_members mine on mine.channel_id = c.id and mine.employee_id = (select id from me())
   where is_member(c.id)
   order by 6 desc, 5 desc nulls last, 3
@@ -920,6 +972,7 @@ $$;
 -- ── Announcements channel: admins and managers post, automated posts from triggers, everyone reads ──
 
 insert into channels (name, type, announcements) values ('Announcements', 'group', true);
+insert into channels (name, type) values ('General', 'global'); -- company-wide chat, everyone posts
 
 -- system message (sender_id null) into the Announcements channel
 create function post_announcement(body text) returns void

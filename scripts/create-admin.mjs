@@ -51,7 +51,7 @@ const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 const { error } = await sb
   .from("employees")
   // admins sit outside the workforce: no office/department
-  .upsert({ email, full_name: fullName.trim(), clerk_user_id: user.id, active: true, role: "admin", office_id: null, department_id: null, designation: null }, { onConflict: "email" });
+  .upsert({ email, full_name: fullName.trim(), clerk_user_id: user.id, active: true, role: "admin", employee_code: null, office_id: null, department_id: null, designation: null }, { onConflict: "email" });
 if (error) throw new Error(`Supabase: ${error.message}`);
 console.log(`Supabase: employee row ready for ${email}`);
 console.log("Done. Sign in at /sign-in.");

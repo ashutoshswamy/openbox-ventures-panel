@@ -410,3 +410,36 @@ assert.equal(await as("u_hr", `delete from payroll_lines returning id`), "ERR", 
 }
 
 console.log("rls ok");
+
+// office channels: own office only; General: everyone, no calls; employee codes auto-assigned
+const chans = "select string_agg(name, ',' order by name) from my_channels() where type in ('office', 'global')";
+assert.equal(await as("u_e1", chans), "General,Pune");
+assert.equal(await as("u_e2", chans), "General,Mumbai");
+assert.equal(await as("u_admin", chans), "General");
+const general = "(select id from channels where type = 'global')";
+assert.notEqual(await as("u_e2", `insert into messages(channel_id, sender_id, body) values (${general}, (select id from me()), 'hi') returning 1`), "ERR");
+assert.equal(await as("u_e1", `select start_call(${general}, 'room')`), "ERR");
+await db.exec("reset role");
+const mumbai = (await db.query("select id from channels where type = 'office' and name = 'Mumbai'")).rows[0].id;
+assert.equal(await as("u_e1", `insert into messages(channel_id, sender_id, body) values ('${mumbai}', (select id from me()), 'x') returning 1`), "ERR");
+await db.exec("reset role; insert into employees(email, full_name) values ('n1@x.com', 'N1'), ('n2@x.com', 'N2'); insert into offices(name) values ('Delhi');");
+const codes = (await db.query("select employee_code c from employees where employee_code is not null order by employee_code")).rows.map((r) => r.c);
+assert.deepEqual(codes, codes.map((_, i) => `OBV${String(i + 1).padStart(3, "0")}`), "gapless OBV001, OBV002…");
+assert.equal((await db.query("select count(*)::int n from channels where type = 'office' and name = 'Delhi'")).rows[0].n, 1);
+
+// admin chats: admin creates, picks members, removes, renames, deletes; employees can't
+await as("u_admin", "insert into channels(name, type, created_by) values ('Leads', 'group', (select id from me())) returning 1");
+await db.exec("reset role");
+const leads = (await db.query("select id from channels where name = 'Leads'")).rows[0].id;
+assert.notEqual(await as("u_admin", `insert into channel_members(channel_id, employee_id) values ('${leads}', ${e1}), ('${leads}', ${e2}) returning 1`), "ERR");
+assert.equal(await as("u_e2", `select name from my_channels() where id = '${leads}'`), "Leads");
+assert.equal(await as("u_admin", `select count(*) from channel_members where channel_id = '${leads}'`), "2");
+assert.equal(await as("u_e1", `delete from channel_members where channel_id = '${leads}' and employee_id = ${e2} returning 1`), "", "employees can't remove members");
+assert.equal(await as("u_admin", `delete from channel_members where channel_id = '${leads}' and employee_id = ${e2} returning 1`), "1");
+assert.equal(await as("u_e2", `select name from my_channels() where id = '${leads}'`), "");
+assert.equal(await as("u_e1", `update channels set name = 'x' where id = '${leads}' returning 1`), "");
+assert.equal(await as("u_admin", `update channels set name = 'Team leads' where id = '${leads}' returning name`), "Team leads");
+assert.equal(await as("u_admin", "delete from channels where type = 'global' returning 1"), "", "system channels stay");
+assert.equal(await as("u_e1", `delete from channels where id = '${leads}' returning 1`), "");
+assert.equal(await as("u_admin", `delete from channels where id = '${leads}' returning 1`), "1");
+console.log("chat + employee code + admin chat checks passed");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { CircleAlert, CircleCheck } from "lucide-react";
 
 // Form bound to a server action returning an error string (or nothing on success).
@@ -23,24 +23,27 @@ export function ActionForm({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [pending, start] = useTransition();
+  const busy = useRef(false); // inert lands on the next render; this blocks a 2nd submit (e.g. held Enter) before that
 
   return (
     <form
       // inert (not a <fieldset> wrapper) blocks input while saving and keeps children direct, so space-y-* works
       inert={pending}
       aria-busy={pending}
-      className={`${className ?? ""} ${pending ? "opacity-60" : ""}`}
+      className={`${className ?? ""} ${pending ? "cursor-wait opacity-60" : ""}`}
       onSubmit={(e) => {
         e.preventDefault();
-        if (confirmText && !confirm(confirmText)) return;
+        if (busy.current || (confirmText && !confirm(confirmText))) return;
         const form = e.currentTarget;
         const fd = new FormData(form, (e.nativeEvent as SubmitEvent).submitter); // keeps clicked button's name/value
+        busy.current = true;
         start(async () => {
           // thrown = auth / rate limit / crash (message hidden in production builds)
           const err = await action(fd).catch(() => "Something went wrong, or too many requests. Wait a moment and try again.");
           setError(err || null);
           setOk(!err);
           if (!err && !keep) form.reset();
+          busy.current = false;
         });
       }}
     >

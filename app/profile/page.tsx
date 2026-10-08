@@ -92,6 +92,7 @@ export default async function Profile() {
           <ActionForm action={saveProfile} keep success="Saved" className="rise divide-y divide-line pt-8 lg:pt-4">
             <Section title="Personal" hint="As on your official ID.">
               <label className="field sm:col-span-2">Full name {req}<input name="full_name" required autoComplete="name" defaultValue={me.full_name} className={input} /></label>
+              <label className="field sm:col-span-2">Alias name<input name="alias_name" maxLength={60} defaultValue={me.alias_name ?? ""} placeholder="The name you go by at work, if different" className={input} /></label>
               <label className="field">Date of birth {req}<input type="date" name="date_of_birth" required autoComplete="bday" defaultValue={p?.date_of_birth ?? ""} className={input} /></label>
               <label className="field">Gender
                 <select name="gender" defaultValue={p?.gender ?? ""} className={input}>

@@ -9,6 +9,7 @@ export type Me = {
   id: string;
   email: string;
   full_name: string;
+  alias_name: string | null; // set by the employee
   role: Role | null; // null = joined, waiting for an admin to assign a role
   office_id: string | null;
   department_id: string | null;
@@ -17,7 +18,7 @@ export type Me = {
 };
 type Assigned = Me & { role: Role };
 
-const cols = "id, email, full_name, office_id, department_id, role, avatar_url, profile:employee_profiles(employee_id)";
+const cols = "id, email, full_name, alias_name, office_id, department_id, role, avatar_url, profile:employee_profiles(employee_id)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toMe = ({ profile, ...e }: any, role: Role | null): Me => ({ ...e, role, onboarded: !!profile });

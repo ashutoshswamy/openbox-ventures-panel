@@ -104,6 +104,10 @@ body {
   .rise { animation: rise 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 }
 
+/* no double-tap zoom on controls; double-clicking a button/summary doesn't select its text */
+button, a, summary, label, [role="button"] { touch-action: manipulation; }
+button, summary, .btn { user-select: none; }
+
 @layer components {
   .btn {
     @apply inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium whitespace-nowrap text-text shadow-[0_1px_1px_rgb(24_24_27/0.04)] transition-[background-color,transform,opacity] hover:bg-surface-2 active:scale-[0.98] disabled:cursor-default disabled:opacity-50 disabled:active:scale-100;

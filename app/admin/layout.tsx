@@ -22,6 +22,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     ["/admin/announcements", "Announcements", "announcements"],
   ];
   if (admin) {
+    links.push(["/admin/chats", "Chats", "chat"]);
     links.push(["/admin/payroll", "Payroll", "payroll"]);
     const { count } = await db().from("issues").select("id", { count: "exact", head: true }).eq("status", "open");
     links.push(["/admin/issues", "Issues", "issues", count ?? 0]);
