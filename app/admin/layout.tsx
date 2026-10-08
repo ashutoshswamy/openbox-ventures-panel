@@ -30,7 +30,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const switchTo = admin ? undefined : { href: "/", label: "My workspace" };
 
   return (
-    <Shell panel={admin ? "Admin" : "Manager"} links={links} switchTo={switchTo} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
+    <Shell panel={admin ? "Admin" : me.role === "branch_head" ? "Branch head" : "Manager"} links={links} switchTo={switchTo} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
       {children}
     </Shell>
   );

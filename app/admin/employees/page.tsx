@@ -23,13 +23,14 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
   return (
     <>
       <label className="field">Full name<input name="full_name" required defaultValue={e?.full_name} className="input" /></label>
-      {!e && <label className="field">Company email<input name="email" type="email" required className="input" /></label>}
+      {!e && <label className="field">Email<input name="email" type="email" required className="input" /></label>}
       {e?.clerk_user_id && (
         <label className="field">Role
           <select name="role" defaultValue={r ?? ""} className="input">
             <option value="">Not assigned (no access)</option>
             <option value="employee">Employee</option>
-            <option value="manager">Manager (office head)</option>
+            <option value="manager">Manager (department head)</option>
+            <option value="branch_head">Branch head (all departments)</option>
             <option value="hr">HR (office)</option>
             <option value="admin">Admin</option>
           </select>
@@ -71,6 +72,7 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
 type Profile = {
   employee_id: string; date_of_birth: string; gender: string | null; phone: string; personal_email: string | null; blood_group: string | null;
   current_address: string; permanent_address: string | null; emergency_name: string; emergency_relation: string; emergency_phone: string;
+  company: string | null; lgoob_alias: string | null; lgoob_email: string | null; fusion_alias: string | null; fusion_email: string | null;
 };
 
 function Details({ p }: { p?: Profile }) {
@@ -81,6 +83,9 @@ function Details({ p }: { p?: Profile }) {
     ["Mobile", <a key="m" href={`tel:${p.phone}`} className="hover:text-primary">{p.phone}</a>],
     ["Personal email", p.personal_email],
     ["Blood group", p.blood_group],
+    ["Company", { lgoob: "LGOOB", fusion: "Fusion Freights", both: "LGOOB & Fusion Freights" }[p.company ?? ""]],
+    ...(p.lgoob_alias ? [["LGOOB alias / email", `${p.lgoob_alias} · ${p.lgoob_email}`] as [string, string]] : []),
+    ...(p.fusion_alias ? [["Fusion Freights alias / email", `${p.fusion_alias} · ${p.fusion_email}`] as [string, string]] : []),
     ["Emergency contact", `${p.emergency_name} (${p.emergency_relation}) · ${p.emergency_phone}`],
     ["Current address", p.current_address],
     ["Permanent address", p.permanent_address],
@@ -190,7 +195,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-wrap justify-end gap-1">
-                      {r && r !== "employee" && <span className="badge badge-teal capitalize"><ShieldCheck /> {r}</span>}
+                      {r && r !== "employee" && <span className="badge badge-teal capitalize"><ShieldCheck /> {r.replace("_", " ")}</span>}
                       {status && StatusIcon && <span className={`badge ${STATUS[status][0]}`}><StatusIcon /> {status}</span>}
                     </span>
                     {isAdmin && <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" />}

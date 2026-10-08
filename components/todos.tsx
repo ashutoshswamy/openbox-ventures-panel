@@ -78,8 +78,9 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
       : null,
     assign
       ? (() => {
-          const q = sb.from("employees").select("id, full_name").eq("active", true).in("role", ["employee", "manager", "hr"]).neq("id", me.id).order("full_name");
-          return me.role === "admin" ? q : q.eq("office_id", me.office_id ?? "");
+          const q = sb.from("employees").select("id, full_name").eq("active", true).in("role", ["employee", "manager", "branch_head", "hr"]).neq("id", me.id).order("full_name");
+          if (me.role === "admin") return q;
+          return me.role === "manager" ? q.eq("office_id", me.office_id ?? "").eq("department_id", me.department_id ?? "") : q.eq("office_id", me.office_id ?? "");
         })()
       : null,
   ]);

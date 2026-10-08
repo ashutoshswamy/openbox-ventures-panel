@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calculator, ChevronDown, FilePlus2, IndianRupee, Plus, Wallet } from "lucide-react";
+import { Calculator, ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Wallet } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
@@ -10,6 +10,7 @@ import { BankForm, maskAcct } from "@/components/bank-form";
 import { PageHeader } from "@/components/shell";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
 import { addSalary, createRun } from "./actions";
+import { allowBankEdit } from "@/app/profile/bank-actions";
 
 export const metadata = { title: "Payroll" };
 
@@ -91,6 +92,7 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                         <div className="text-right text-sm tabular-nums">
                           {cur ? <><div className="font-medium">{inr(Number(cur.annual_ctc))} / yr</div><div className="text-muted">since {fmtDate(cur.effective_from)}</div></> : <span className="text-muted">No salary</span>}
                         </div>
+                        {bank?.edit_requested_at && <span className="badge badge-amber">Bank edit requested</span>}
                         <div className="w-28 text-sm text-muted tabular-nums">{bank ? maskAcct(bank.account_number) : "No bank details"}</div>
                         <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
                       </summary>
@@ -123,7 +125,18 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                             <button className="btn btn-primary"><Plus /> {hist.length ? "Add increment" : "Set salary"}</button>
                           </ActionForm>
                         </div>
-                        <BankForm bank={bank} employeeId={p.id} />
+                        <div className="space-y-4">
+                          {bank && (bank.employee_can_edit ? (
+                            <p className="text-sm text-muted"><LockOpen className="mr-1 inline size-3.5" />Unlocked: {p.full_name.split(" ")[0]} can change their bank details once.</p>
+                          ) : (
+                            <ActionForm action={allowBankEdit} success="Unlocked" className="flex flex-wrap items-center gap-3">
+                              <input type="hidden" name="employee_id" value={p.id} />
+                              <button className={`btn ${bank.edit_requested_at ? "btn-primary" : ""}`}><LockOpen /> Allow employee to edit</button>
+                              {bank.edit_requested_at && <span className="text-sm text-muted">Requested {fmtDate(bank.edit_requested_at.slice(0, 10))}</span>}
+                            </ActionForm>
+                          ))}
+                          <BankForm bank={bank} employeeId={p.id} />
+                        </div>
                       </div>
                     </details>
                   </li>

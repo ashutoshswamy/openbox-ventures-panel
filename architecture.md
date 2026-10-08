@@ -50,11 +50,12 @@ flowchart TD
 | Role | Portals | Scope |
 |---|---|---|
 | `employee` | Workspace | Self |
-| `manager` | Workspace + Manager panel (`/admin`) | Own office (`manages()`), first-step leave approval |
+| `manager` | Workspace + Manager panel (`/admin`) | Own department in own office (`manages()`), first-step leave approval for employees |
+| `branch_head` | Workspace + Manager panel (`/admin`) | All departments in own office, first-step leave approval for employees and managers |
 | `hr` | Workspace + HR portal (`/hr`) | Own office: final leave approval, regularizations, payroll prep |
 | `admin` | Admin panel (`/admin`) only | Whole org; no attendance/leave of their own |
 
-`manages(emp)` = admin, or manager/HR in the same `office_id` (never yourself).
+`manages(emp)` = admin, branch head/HR in the same `office_id`, or manager in the same `office_id` + `department_id` (never yourself).
 
 ## 3. Workspace (`/`) — every non-admin
 
@@ -104,9 +105,9 @@ flowchart LR
 stateDiagram-v2
   [*] --> pending: apply_leave()<br/>balance, overlap, doc rules
   pending --> cancelled: cancel_leave() (employee)
-  pending --> manager_approved: manager approves
-  pending --> rejected: manager / HR / admin rejects
-  pending --> approved: HR/admin final, only if<br/>office has no manager or applicant is a manager<br/>(admin always)
+  pending --> manager_approved: dept manager / branch head approves
+  pending --> rejected: manager / branch head / HR / admin rejects
+  pending --> approved: HR/admin final, only if<br/>nobody can give step 1 or applicant is a branch head<br/>(admin always)
   manager_approved --> approved: HR (own office) / admin
   manager_approved --> rejected: HR / admin
   approved --> [*]

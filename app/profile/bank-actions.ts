@@ -24,3 +24,18 @@ export async function saveBank(fd: FormData) {
   }
   revalidatePath("/", "layout");
 }
+
+export async function requestBankEdit() {
+  await requireMe();
+  const { error } = await db().rpc("request_bank_edit");
+  if (error) return error.message;
+  revalidatePath("/", "layout");
+}
+
+// HR/admin: let the employee change their bank details once.
+export async function allowBankEdit(fd: FormData) {
+  await requireMe();
+  const { error } = await db().rpc("allow_bank_edit", { p_emp: str(fd, "employee_id") });
+  if (error) return error.message;
+  revalidatePath("/", "layout");
+}

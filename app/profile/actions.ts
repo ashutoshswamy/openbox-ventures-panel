@@ -27,6 +27,19 @@ export async function saveProfile(fd: FormData) {
   const email = str(fd, "personal_email");
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return "Personal email doesn't look right";
 
+  const company = str(fd, "company");
+  if (!company || !["lgoob", "fusion", "both"].includes(company)) return "Pick which company you work with";
+  const companyFields = { lgoob_alias: null, lgoob_email: null, fusion_alias: null, fusion_email: null } as Record<string, string | null>;
+  for (const [key, name, on] of [["lgoob", "LGOOB", company !== "fusion"], ["fusion", "Fusion Freights", company !== "lgoob"]] as const) {
+    if (!on) continue;
+    const a = str(fd, `${key}_alias`), e = str(fd, `${key}_email`);
+    if (!a || !e) return `Enter your ${name} alias name and email`;
+    if (a.length > 60) return `${name} alias name is too long`;
+    if (!/^\S+@\S+\.\S+$/.test(e) || e.length > 254) return `${name} email doesn't look right`;
+    companyFields[`${key}_alias`] = a;
+    companyFields[`${key}_email`] = e.toLowerCase();
+  }
+
   const current = str(fd, "current_address")!;
   const sb = adminDb();
   const { error } = await sb.from("employee_profiles").upsert({
@@ -41,6 +54,8 @@ export async function saveProfile(fd: FormData) {
     emergency_name: str(fd, "emergency_name"),
     emergency_relation: str(fd, "emergency_relation"),
     emergency_phone: str(fd, "emergency_phone"),
+    company,
+    ...companyFields,
     updated_at: new Date().toISOString(),
   });
   if (error) return error.message;

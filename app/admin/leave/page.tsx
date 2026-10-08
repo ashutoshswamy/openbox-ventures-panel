@@ -14,11 +14,11 @@ type Req = {
   id: string; employee_id: string; start_date: string; end_date: string; days: number; half_day: boolean;
   reason: string | null; doc_path: string | null; status: string; review_note: string | null; leave_type_id: string;
   manager_note: string | null;
-  employee: { full_name: string; avatar_url: string | null; role: string | null; office_id: string | null } | null;
+  employee: { full_name: string; avatar_url: string | null; role: string | null; office_id: string | null; department_id: string | null } | null;
   type: { name: string } | null; reviewer: { full_name: string } | null; manager: { full_name: string } | null;
 };
 
-const sel = "*, employee:employees!leave_requests_employee_id_fkey(full_name, avatar_url, role, office_id), reviewer:employees!leave_requests_reviewed_by_fkey(full_name), manager:employees!leave_requests_manager_reviewed_by_fkey(full_name), type:leave_types(name)";
+const sel = "*, employee:employees!leave_requests_employee_id_fkey(full_name, avatar_url, role, office_id, department_id), reviewer:employees!leave_requests_reviewed_by_fkey(full_name), manager:employees!leave_requests_manager_reviewed_by_fkey(full_name), type:leave_types(name)";
 
 const dates = (r: Req) => `${fmtDate(r.start_date)}${r.end_date !== r.start_date ? ` - ${fmtDate(r.end_date)}` : ""}${r.half_day ? " (half)" : ""}`;
 
@@ -26,24 +26,27 @@ export default async function AdminLeave() {
   const me = await staffPage();
   const sb = db();
   const year = `${new Date().getFullYear()}-01-01`;
-  const [{ data: pending }, { data: recent }, { data: balances }, { data: managers }, { data: taken }] = await Promise.all([
+  const [{ data: pending }, { data: recent }, { data: balances }, { data: heads }, { data: taken }] = await Promise.all([
     sb.from("leave_requests").select(sel).in("status", ["pending", "manager_approved"]).neq("employee_id", me.id).order("start_date"),
     sb.from("leave_requests").select(sel).not("status", "in", "(pending,manager_approved)").order("created_at", { ascending: false }).limit(30),
     sb.from("leave_balances").select("employee_id, leave_type_id, balance"),
-    sb.from("employees").select("office_id").eq("role", "manager").eq("active", true),
+    sb.from("employees").select("id, role, office_id, department_id").in("role", ["manager", "branch_head"]).eq("active", true),
     sb.from("leave_requests").select("employee_id, days").eq("status", "approved").gte("start_date", year),
   ]);
-  const mgrOffices = new Set(managers?.map((m) => m.office_id));
+  // someone can give step 1: branch head of the office, or (employee leave) their department manager
+  const hasFirst = (r: Req) => r.employee?.role !== "branch_head" && !!heads?.some((h) => h.id !== r.employee_id && h.office_id === r.employee?.office_id
+    && (h.role === "branch_head" || (h.role === "manager" && r.employee?.role === "employee" && h.department_id === r.employee?.department_id)));
   const takenDays = (r: Req) => taken?.filter((t) => t.employee_id === r.employee_id).reduce((n, t) => n + Number(t.days), 0) ?? 0;
   // mirrors review_leave(): who may act on a request right now
   const canAct = (r: Req) => {
     const er = r.employee?.role;
     if (me.role === "admin") return true;
-    if (me.role === "manager") return r.status === "pending" && er !== "manager" && er !== "hr";
+    if (me.role === "manager" || me.role === "branch_head")
+      return r.status === "pending" && er !== "hr" && er !== "branch_head" && (me.role === "branch_head" || er !== "manager");
     if (er === "hr") return false;
-    return r.status === "manager_approved" || er === "manager" || !mgrOffices.has(r.employee?.office_id ?? null);
+    return r.status === "manager_approved" || !hasFirst(r);
   };
-  const final = me.role !== "manager";
+  const final = me.role !== "manager" && me.role !== "branch_head";
   const actionable = pending?.filter(canAct).length ?? 0;
   const bal = (r: Req) => balances?.find((b) => b.employee_id === r.employee_id && b.leave_type_id === r.leave_type_id)?.balance;
 

@@ -16,8 +16,9 @@ await db.exec(`
   grant usage on schema public, auth to authenticated, anon;
   grant select on auth._claims to authenticated, anon;
   alter default privileges in schema public grant all on tables to authenticated, anon;`);
-// reset → schema → reset → schema: both scripts must run cleanly on a used DB
-const schema = fs.readFileSync("supabase/schema.sql", "utf8");
+// reset → schema → reset → schema: both scripts must run cleanly on a used DB. Migrations run after schema, in name order.
+const migrations = fs.readdirSync("supabase/migrations").sort().map((f) => fs.readFileSync(`supabase/migrations/${f}`, "utf8")).join("\n");
+const schema = fs.readFileSync("supabase/schema.sql", "utf8") + "\n" + migrations;
 const reset = fs.readFileSync("supabase/reset.sql", "utf8");
 await db.exec(schema);
 await db.exec(reset);
@@ -34,6 +35,8 @@ await db.exec(`
   insert into attendance(employee_id, date, mode) select id, current_date, 'office' from employees;
   insert into employees(email, full_name, office_id, clerk_user_id) values ('h@x.com', 'HR', '00000000-0000-0000-0000-00000000000a', 'u_hr');
   update employees set role = case email when 'a@x.com' then 'admin' when 'm@x.com' then 'manager' when 'h@x.com' then 'hr' else 'employee' end;
+  insert into departments(id, office_id, name) values ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-00000000000a', 'Ops');
+  update employees set department_id = '00000000-0000-0000-0000-0000000000d1' where email in ('m@x.com', 'e1@x.com');
   insert into leave_types(name) values ('Casual');
   insert into leave_requests(employee_id, leave_type_id, start_date, end_date, days)
     select e.id, t.id, current_date, current_date, 1 from employees e, leave_types t where e.email in ('e1@x.com', 'm@x.com');`);
@@ -87,6 +90,38 @@ assert.equal(await as("u_e1", lstatus("e1@x.com")), "approved");
 assert.equal(await as("u_hr", review("e1@x.com")), "ERR", "already reviewed");
 assert.equal(await as("u_hr", review("m@x.com")), "", "HR finalizes a manager's leave directly");
 assert.equal(await as("u_mgr", lstatus("m@x.com")), "approved");
+
+// branch head: whole office (all departments); manager: own department only
+roles.u_bh = "branch_head"; roles.u_e3 = "employee";
+await db.exec(`reset role;
+  insert into departments(id, office_id, name) values ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-00000000000a', 'Sales');
+  insert into employees(email, full_name, office_id, department_id, clerk_user_id, role) values
+    ('e3@x.com', 'E3', '00000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d2', 'u_e3', 'employee'),
+    ('b@x.com',  'BH', '00000000-0000-0000-0000-00000000000a', null, 'u_bh', 'branch_head');
+  insert into leave_requests(employee_id, leave_type_id, start_date, end_date, days)
+    select e.id, t.id, current_date + 1, current_date + 1, 1 from employees e, leave_types t where e.email in ('e3@x.com', 'm@x.com', 'b@x.com');`);
+const manages = (email) => `select manages(id) from employees where email = '${email}'`;
+assert.equal(await as("u_mgr", manages("e1@x.com")), "true", "manager: own department");
+assert.equal(await as("u_mgr", manages("e3@x.com")), "false", "manager: not other departments");
+assert.equal(await as("u_bh", manages("e3@x.com")), "true", "branch head: every department");
+assert.equal(await as("u_bh", manages("m@x.com")), "true");
+assert.equal(await as("u_bh", manages("e2@x.com")), "false", "branch head: not other offices");
+assert.equal(await as("u_mgr", review("e3@x.com")), "ERR", "manager can't review other departments");
+assert.equal(await as("u_hr", review("e3@x.com")), "ERR", "HR waits for the branch head");
+assert.equal(await as("u_bh", review("e3@x.com")), "");
+assert.equal(await as("u_e3", lstatus("e3@x.com")), "manager_approved");
+assert.equal(await as("u_bh", review("e3@x.com")), "ERR", "branch head can't finalize");
+assert.equal(await as("u_hr", review("e3@x.com")), "");
+assert.equal(await as("u_hr", review("m@x.com")), "ERR", "manager leave now waits for the branch head");
+assert.equal(await as("u_mgr", review("m@x.com")), "ERR");
+assert.equal(await as("u_bh", review("m@x.com")), "");
+assert.equal(await as("u_hr", review("m@x.com")), "");
+assert.equal(await as("u_bh", review("b@x.com")), "ERR", "branch head must not self-approve");
+assert.equal(await as("u_mgr", review("b@x.com")), "ERR");
+assert.equal(await as("u_hr", review("b@x.com")), "", "HR finalizes a branch head's leave directly");
+await db.exec(`reset role;
+  delete from leave_requests where employee_id in (select id from employees where email in ('e3@x.com', 'b@x.com')) or start_date = current_date + 1;
+  delete from employees where email in ('e3@x.com', 'b@x.com');`);
 
 assert.equal(await as("u_e1", "insert into channels(name, type, created_by) select 'c', 'group', id from employees where email = 'e1@x.com' returning name"), "c");
 
@@ -153,7 +188,7 @@ await db.exec("reset role");
 
 // ── chat ──
 await db.exec(`reset role; insert into departments(office_id, name) values ('00000000-0000-0000-0000-00000000000a', 'Eng');
-  update employees set department_id = (select id from departments) where email = 'e1@x.com';`);
+  update employees set department_id = (select id from departments where name = 'Eng') where email in ('e1@x.com', 'm@x.com');`);
 assert.equal(await as("u_e1", "select name from my_channels() where type = 'department'"), "Eng", "dept channel auto + implicit member");
 assert.equal(await as("u_e2", "select count(*) from my_channels() where type = 'department'"), "0");
 await as("u_admin", "update departments set name = 'Engineering' where name = 'Eng' returning id");
@@ -256,9 +291,10 @@ assert.notEqual(await as("u_mgr", `delete from messages where channel_id = '${an
 assert.notEqual(await as("u_admin", `delete from messages where channel_id = '${annId}' and sender_id is null returning id`), "");
 
 // org chart: reports_to cycle guard + deactivated visibility
-await db.exec(`reset role; insert into employees(email, full_name, office_id, active) values ('gone@x.com', 'Gone', '00000000-0000-0000-0000-00000000000a', false)`);
+await db.exec(`reset role; insert into employees(email, full_name, office_id, department_id, active)
+  select 'gone@x.com', 'Gone', '00000000-0000-0000-0000-00000000000a', department_id, false from employees where email = 'm@x.com'`);
 assert.equal(await as("u_e1", "select count(*) from employees where email = 'gone@x.com'"), "0", "employees don't see deactivated");
-assert.equal(await as("u_mgr", "select count(*) from employees where email = 'gone@x.com'"), "1", "manager sees own-office deactivated");
+assert.equal(await as("u_mgr", "select count(*) from employees where email = 'gone@x.com'"), "1", "manager sees own-department deactivated");
 assert.equal(await as("u_hr", "select count(*) from employees where email = 'gone@x.com'"), "1", "HR sees own-office deactivated");
 assert.equal(await as("u_e2", "select count(*) from employees where email = 'gone@x.com'"), "0", "other office can't");
 assert.equal(await as("u_admin", "select count(*) from employees where email = 'gone@x.com'"), "1");
@@ -319,8 +355,16 @@ assert.equal(await as("u_e1", `update employee_salaries set annual_ctc = 1 retur
 assert.equal(await as("u_e1", `insert into employee_salaries(employee_id, annual_ctc, effective_from) select ${e1}, 9, '2026-01-01' returning id`), "ERR");
 // bank details
 assert.equal(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'hdfc0001234', 'HDFC', 'abcde1234f', null)`), "ok");
+assert.match(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'HDFC0001234', 'HDFC')`), /locked/, "own re-save locked");
+assert.match(await err("u_e1", `select allow_bank_edit(${e1})`), /Not allowed/, "can't unlock own");
+assert.match(await err("u_mgr", `select allow_bank_edit(${e1})`), /Not allowed/);
+assert.equal(await err("u_e1", `select request_bank_edit()`), "ok");
+assert.notEqual(await as("u_hr", `select edit_requested_at from employee_bank where employee_id = ${e1}`), null);
+assert.equal(await err("u_hr", `select allow_bank_edit(${e1})`), "ok");
 assert.match(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'BAD', 'HDFC')`), /ifsc/);
 assert.match(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'HDFC0001234', 'HDFC', 'xx')`), /pan/);
+assert.equal(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'hdfc0001234', 'HDFC', 'abcde1234f', null)`), "ok", "unlocked save");
+assert.match(await err("u_e1", `select save_bank_details(${e1}, 'E One', '123456789012', 'HDFC0001234', 'HDFC')`), /locked/, "locked again after save");
 assert.match(await err("u_e1", `select save_bank_details(${e2}, 'X', '123456789012', 'HDFC0001234', 'HDFC')`), /Not allowed/);
 assert.match(await err("u_mgr", `select save_bank_details(${e1}, 'X', '123456789012', 'HDFC0001234', 'HDFC')`), /Not allowed/);
 assert.equal(await as("u_hr", "select pan from employee_bank"), "ABCDE1234F", "HR reads, uppercased");

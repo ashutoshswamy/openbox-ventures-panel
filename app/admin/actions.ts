@@ -17,7 +17,7 @@ function num(fd: FormData, key: string) {
   return v === null ? null : Number(v);
 }
 
-const ROLES: Role[] = ["employee", "manager", "hr", "admin"];
+const ROLES: Role[] = ["employee", "manager", "branch_head", "hr", "admin"];
 // "" = not assigned
 function role(fd: FormData): Role | null {
   const r = str(fd, "role") as Role | null;

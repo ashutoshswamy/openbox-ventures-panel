@@ -16,7 +16,7 @@ export default async function EmployeeLayout({ children }: LayoutProps<"/">) {
     ["/profile", "My details", "profile"],
     ["/support", "Report an issue", "support"],
   ];
-  const switchTo = me.role === "manager" || me.role === "hr" ? me.role === "hr" ? { href: "/hr", label: "HR portal" } : { href: "/admin", label: "Manager panel" } : undefined;
+  const switchTo = me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? me.role === "hr" ? { href: "/hr", label: "HR portal" } : { href: "/admin", label: "Manager panel" } : undefined;
 
   return (
     <Shell panel="Workspace" links={links} switchTo={switchTo} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>

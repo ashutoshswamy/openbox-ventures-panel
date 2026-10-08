@@ -206,3 +206,7 @@ button, summary, .btn { user-select: none; }
 .org > ul > li::before, .org > ul > li::after { display: none; }
 .org ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 1.25rem; border-left: 1px solid var(--line); }
 .org-card { display: flex; align-items: center; gap: 0.625rem; min-width: 11rem; max-width: 14rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); }
+
+/* profile Company section: show only the picked company's alias/email fields */
+.company:not(:has([name=company][value=lgoob]:checked, [name=company][value=both]:checked)) .lg,
+.company:not(:has([name=company][value=fusion]:checked, [name=company][value=both]:checked)) .ff { display: none; }

@@ -2,7 +2,7 @@ import { Save } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { saveBank } from "@/app/profile/bank-actions";
 
-export type Bank = { holder_name: string; account_number: string; ifsc: string; bank_name: string; pan: string | null; uan: string | null };
+export type Bank = { holder_name: string; account_number: string; ifsc: string; bank_name: string; pan: string | null; uan: string | null; employee_can_edit?: boolean; edit_requested_at?: string | null };
 
 export const maskAcct = (a: string) => "•••• " + a.slice(-4);
 

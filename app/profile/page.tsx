@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ArrowRight, Lock, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Lock, Save, Send } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PhotoPicker } from "@/components/photo-picker";
@@ -9,15 +9,17 @@ import { adminDb } from "@/lib/supabase";
 import { ActionForm } from "@/components/action-form";
 import { db } from "@/lib/supabase";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
-import { BankForm } from "@/components/bank-form";
+import { BankForm, maskAcct } from "@/components/bank-form";
 import { breakdown, daysIn, inr } from "@/lib/payroll";
 import { fmtDate, todayIn } from "@/lib/util";
 import { saveProfile } from "./actions";
+import { requestBankEdit } from "./bank-actions";
 
 export const metadata = { title: "My details" };
 
 const GENDERS = ["Female", "Male", "Non-binary", "Prefer not to say"];
 const BLOOD = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const COMPANIES = [["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"]];
 
 // Title + hint on the left, fields on the right (stacked below lg).
 function Section({ title, hint, children, className = "" }: { title: string; hint: string; children: React.ReactNode; className?: string }) {
@@ -110,6 +112,20 @@ export default async function Profile() {
               </label>
             </Section>
 
+            {/* .company (globals.css) shows only the picked company's fields; required checked on the server since hidden inputs can't be */}
+            <Section title="Company" hint="Who you work with, and the name and email you use there." className="company">
+              <div className="field sm:col-span-2" role="radiogroup" aria-label="Which company do you work with?">
+                <span>Which company do you work with? {req}</span>
+                <div className="flex flex-wrap gap-x-6 gap-y-2">
+                  {COMPANIES.map(([v, l]) => <label key={v} className="check"><input type="radio" name="company" value={v} required defaultChecked={p?.company === v} /> {l}</label>)}
+                </div>
+              </div>
+              <label className="lg field">LGOOB alias name {req}<input name="lgoob_alias" maxLength={60} defaultValue={p?.lgoob_alias ?? ""} className={input} /></label>
+              <label className="lg field">LGOOB email {req}<input type="email" name="lgoob_email" defaultValue={p?.lgoob_email ?? ""} className={input} /></label>
+              <label className="ff field">Fusion Freights alias name {req}<input name="fusion_alias" maxLength={60} defaultValue={p?.fusion_alias ?? ""} className={input} /></label>
+              <label className="ff field">Fusion Freights email {req}<input type="email" name="fusion_email" defaultValue={p?.fusion_email ?? ""} className={input} /></label>
+            </Section>
+
             {/* ponytail: CSS :has() hides permanent address while "same" is ticked, no client JS */}
             <Section title="Address" hint="Where you live now, and your home address if different." className="[&:has([name=same_address]:checked)_.perm]:hidden">
               <label className="field sm:col-span-2">Current address {req}<textarea name="current_address" required rows={3} autoComplete="street-address" defaultValue={p?.current_address ?? ""} className="input" /></label>
@@ -143,7 +159,28 @@ export default async function Profile() {
               </section>
               <section>
                 <h2 className="mb-3 text-[15px] font-semibold tracking-tight">Bank details</h2>
-                <BankForm bank={bank} />
+                {!bank ? <BankForm /> : bank.employee_can_edit ? (
+                  <>
+                    <p className="mb-4 rounded-xl bg-amber-soft p-3 text-sm text-amber">Editing is unlocked. Once you click save, your details lock again and you&apos;ll need to request access again for further changes.</p>
+                    <BankForm bank={bank} />
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                      {[["Account holder", bank.holder_name], ["Bank", bank.bank_name], ["Account number", maskAcct(bank.account_number)], ["IFSC", bank.ifsc], ["PAN", bank.pan], ["UAN", bank.uan]].map(([k, v]) => (
+                        <div key={k}><dt className="text-xs text-muted">{k}</dt><dd>{v || "-"}</dd></div>
+                      ))}
+                    </dl>
+                    {bank.edit_requested_at ? (
+                      <p className="flex items-center gap-2 text-sm text-muted"><Clock className="size-4" /> Edit requested {fmtDate(bank.edit_requested_at.slice(0, 10))}. Waiting for HR or an admin to allow it.</p>
+                    ) : (
+                      <ActionForm action={requestBankEdit} success="Request sent to HR / admin" className="flex flex-wrap items-center gap-3">
+                        <button className="btn"><Send /> Request to edit</button>
+                        <span className="text-sm text-muted"><Lock className="mr-1 inline size-3.5" />Locked. HR or an admin has to allow changes.</span>
+                      </ActionForm>
+                    )}
+                  </div>
+                )}
               </section>
             </div>
           )}
