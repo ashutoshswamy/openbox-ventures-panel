@@ -128,7 +128,8 @@ async function invite(email: string) {
 // department implies office
 async function placement(fd: FormData) {
   const department_id = str(fd, "department_id");
-  if (!department_id) return { department_id: null, office_id: str(fd, "office_id") };
+  // branch head heads the whole office: no department (field is hidden for them, may still post a value)
+  if (!department_id || str(fd, "role") === "branch_head") return { department_id: null, office_id: str(fd, "office_id") };
   const { data } = await db().from("departments").select("office_id").eq("id", department_id).single();
   return { department_id, office_id: data?.office_id ?? null };
 }

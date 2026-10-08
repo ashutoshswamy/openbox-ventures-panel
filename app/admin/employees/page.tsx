@@ -46,7 +46,7 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
           {offices.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
       </label>
-      <label className="field">Department (sets office)
+      <label className="dept field">Department (sets office)
         <select name="department_id" defaultValue={e?.department_id ?? ""} className="input">
           <option value="">-</option>
           {depts.map((d) => <option key={d.id} value={d.id}>{officeName(d.office_id)} / {d.name}</option>)}

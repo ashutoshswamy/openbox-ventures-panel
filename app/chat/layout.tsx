@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { Building2, Globe, Hash, History, Megaphone, SquarePen, Users } from "lucide-react";
 import { db } from "@/lib/supabase";
+import { pageMe } from "@/lib/me";
+import { adminNav, employeeNav } from "@/lib/nav";
+import { Shell } from "@/components/shell";
 import { Avatar } from "@/components/avatar";
 import { ChannelLink, ChatSidebar } from "@/components/live-refresh";
 
@@ -33,7 +36,10 @@ function Group({ title, rows }: { title: string; rows: Row[] }) {
   );
 }
 
+// Outside the (employee) group so admins get it too, inside their own panel's shell.
 export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
+  const me = await pageMe();
+  const nav = me.role === "admin" ? await adminNav(me) : employeeNav(me);
   const { data } = await db().rpc("my_channels");
   const rows = (data ?? []) as Row[];
   // office channel first, then its departments
@@ -41,6 +47,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
   const offices = [...new Map(officeRows.map((r) => [r.office_id, r.office_name])).entries()];
 
   return (
+    <Shell {...nav} user={{ id: me.id, name: me.full_name, role: me.role, avatar: me.avatar_url }}>
     <div className="card flex h-[calc(100dvh-10rem)] min-h-96 overflow-hidden p-0 md:h-[calc(100dvh-12rem)] lg:h-[calc(100dvh-5rem)]">
       <ChatSidebar>
         <div className="flex h-16 shrink-0 items-center justify-between px-4">
@@ -60,5 +67,6 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
       </ChatSidebar>
       <section className="flex min-w-0 flex-1 flex-col">{children}</section>
     </div>
+    </Shell>
   );
 }

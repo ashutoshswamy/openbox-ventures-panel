@@ -29,13 +29,13 @@ export function Shell({
   panel: string;
   links: NavLink[];
   switchTo?: PanelSwitch;
-  user: { name: string; role: string; avatar: string | null };
+  user: { id: string; name: string; role: string; avatar: string | null };
   children: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-dvh w-full min-w-0 flex-1 flex-col lg:flex-row">
       <AvatarSync stored={user.avatar} />
-      <LiveRefresh />
+      <LiveRefresh meId={user.id} />
       <aside className="sticky top-0 z-10 min-w-0 border-b border-line bg-bg/85 backdrop-blur lg:h-dvh lg:w-60 lg:shrink-0 lg:border-r lg:border-b-0 lg:bg-bg">
         <div className="flex h-full flex-col gap-5 lg:p-3">
           <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:px-2 lg:pt-2">

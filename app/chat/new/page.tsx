@@ -1,16 +1,20 @@
 import Link from "next/link";
 import { ArrowLeft, MessageCircle, UsersRound } from "lucide-react";
-import { employeePage } from "@/lib/me";
+import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
-import { createGroup, openDm } from "../../actions";
+import { createGroup, openDm } from "@/app/(employee)/actions";
 
 export const metadata = { title: "New conversation" };
 
 export default async function NewChat() {
-  const me = await employeePage();
-  const { data: people } = await db().from("employees").select("id, full_name, avatar_url").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").neq("id", me.id).order("full_name");
+  const me = await pageMe();
+  const admin = me.role === "admin";
+  // admins: one-to-one with anyone (admins included), no groups. Everyone else: no admins (they can't be messaged first).
+  let q = db().from("employees").select("id, full_name, avatar_url, role").eq("active", true).not("clerk_user_id", "is", null).neq("id", me.id).order("full_name");
+  if (!admin) q = q.or("role.is.null,role.neq.admin");
+  const { data: people } = await q;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -20,12 +24,12 @@ export default async function NewChat() {
           <h2 className="h2"><MessageCircle /> Direct message</h2>
           <ActionForm action={openDm} className="flex gap-2">
             <select name="employee_id" required aria-label="Person" className="input h-10">
-              {people?.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              {people?.map((p) => <option key={p.id} value={p.id}>{p.full_name}{admin && p.role === "admin" ? " (admin)" : ""}</option>)}
             </select>
             <button className="btn btn-primary h-10">Open</button>
           </ActionForm>
         </div>
-        <div>
+        {!admin && <div>
           <h2 className="h2"><UsersRound /> New group</h2>
           <ActionForm action={createGroup} className="space-y-4">
             <label className="field">Group name<input name="name" required className="input h-10" /></label>
@@ -45,7 +49,7 @@ export default async function NewChat() {
             </fieldset>
             <button className="btn btn-primary h-10">Create group</button>
           </ActionForm>
-        </div>
+        </div>}
       </div>
     </div>
   );

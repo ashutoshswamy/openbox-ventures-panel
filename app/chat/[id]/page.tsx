@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Building2, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
-import { employeePage } from "@/lib/me";
+import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
@@ -10,7 +10,7 @@ import { AttachInput } from "@/components/attach-input";
 import { Attachment } from "@/components/attachment";
 import { Avatar } from "@/components/avatar";
 import { CallButton, CallCard, Ended } from "@/components/call-button";
-import { endCall, markRead, sendMessage } from "../../actions";
+import { endCall, markRead, sendMessage } from "@/app/(employee)/actions";
 
 export const metadata = { title: "Chat" };
 
@@ -64,7 +64,7 @@ type Msg = { id: string; body: string | null; attachment_path: string | null; cr
 
 export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
-  const me = await employeePage();
+  const me = await pageMe();
   const sb = db();
   const [{ data: channels }, { data }] = await Promise.all([
     sb.rpc("my_channels"),

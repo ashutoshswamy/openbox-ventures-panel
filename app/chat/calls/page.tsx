@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, History, Video } from "lucide-react";
-import { employeePage } from "@/lib/me";
+import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, fmtTime } from "@/lib/util";
 import { Avatar } from "@/components/avatar";
@@ -25,7 +25,7 @@ function duration(from: string, to: string) {
 }
 
 export default async function Calls() {
-  await employeePage();
+  await pageMe();
   const sb = db();
   const [{ data: channels }, { data }] = await Promise.all([
     sb.rpc("my_channels"),

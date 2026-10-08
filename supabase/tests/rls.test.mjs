@@ -205,11 +205,17 @@ assert.match(await err("u_mgr", `insert into messages(channel_id, sender_id, bod
 await db.exec("reset role; update employees set role = 'admin' where email = 'a@x.com'");
 const adminId = (await db.query("select id from employees where email = 'a@x.com'")).rows[0].id;
 assert.match(await err("u_e1", `select dm_with('${adminId}')`), /Admins can't be messaged/);
+// admins: one-to-one with anyone; the employee can then reply and see who it is
+const adminDm = await as("u_admin", `select dm_with((select id from employees where email = 'e1@x.com'))`);
+assert.equal(await as("u_e1", `select dm_with('${adminId}')`), adminDm, "employee reaches existing admin DM");
+assert.equal(await as("u_e1", `select name from my_channels() where id = '${adminDm}'`), "Admin", "admin name visible to DM peer");
+assert.equal(await as("u_e2", `select count(*) from employees where id = '${adminId}'`), "0", "admin still hidden from others");
+assert.equal(await err("u_e1", `insert into messages (channel_id, sender_id, body) values ('${adminDm}', (select id from employees where email = 'e1@x.com'), 'hi')`), "ok");
 const grp = await as("u_e1", "insert into channels(name, type, created_by) select 'g', 'group', id from employees where email = 'e1@x.com' returning id");
 assert.match(await err("u_e1", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${adminId}')`), /row-level security/);
 
-// ── admins are anonymous: invisible to everyone but admins ──
-for (const u of ["u_e1", "u_mgr", "u_hr"]) assert.equal(await as(u, "select count(*) from employees where role = 'admin'"), "0", `${u} can't see admins`);
+// ── admins are anonymous: invisible to everyone but admins (and people they DM'd, e1 above) ──
+for (const u of ["u_e2", "u_mgr", "u_hr"]) assert.equal(await as(u, "select count(*) from employees where role = 'admin'"), "0", `${u} can't see admins`);
 assert.equal(await as("u_admin", "select count(*) from employees where role = 'admin'"), "1");
 assert.equal(await err("u_e1", `insert into channel_members(channel_id, employee_id) select '${grp}', id from employees where email in ('e1@x.com', 'e2@x.com')`), "ok");
 

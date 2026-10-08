@@ -20,7 +20,7 @@ export default async function HrLayout({ children }: { children: React.ReactNode
   ];
 
   return (
-    <Shell panel="HR" links={links} switchTo={{ href: "/", label: "My workspace" }} user={{ name: me.full_name, role: me.role, avatar: me.avatar_url }}>
+    <Shell panel="HR" links={links} switchTo={{ href: "/", label: "My workspace" }} user={{ id: me.id, name: me.full_name, role: me.role, avatar: me.avatar_url }}>
       {children}
     </Shell>
   );

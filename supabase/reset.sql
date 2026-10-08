@@ -15,7 +15,7 @@ cascade;
 drop function if exists
   next_employee_code, my_role, me, is_admin, manages, is_member, distance_m, my_today,
   check_in, check_out, leave_days, apply_leave, cancel_leave, close_year,
-  create_department_channel, rename_department_channel, create_office_channel, rename_office_channel, dm_with, my_channels, start_call, call_ping, end_call,
+  create_department_channel, rename_department_channel, create_office_channel, rename_office_channel, dm_with, dm_peer, my_channels, start_call, call_ping, end_call,
   post_announcement, announce_holiday, announce_office, announce_joiner, orphan_uploads,
   hit_rate_limit, can_see_pay, can_run_payroll, add_salary, save_bank_details, request_bank_edit, allow_bank_edit, payroll_derive, create_payroll_run, update_payroll_line,
   submit_payroll_run, review_payroll_run, delete_payroll_run,

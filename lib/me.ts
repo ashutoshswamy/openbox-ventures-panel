@@ -16,7 +16,7 @@ export type Me = {
   onboarded: boolean; // filled the personal details form
   avatar_url: string | null; // Clerk profile photo copy
 };
-type Assigned = Me & { role: Role };
+export type Assigned = Me & { role: Role };
 
 const cols = "id, email, full_name, alias_name, office_id, department_id, role, avatar_url, profile:employee_profiles(employee_id)";
 
