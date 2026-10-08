@@ -13,7 +13,7 @@ const dmSans = DM_Sans({
 
 const description = "Attendance, leave, payroll, HR, chat and meetings for the Open Box Ventures LLP team.";
 
-// Default: noindex (everything is behind login). /sign-in opts back in. Share image: public/og-image.png (SHARE in lib/util.ts).
+// Default: noindex (everything is behind login). /sign-in opts back in. Share image: public/og-image.jpg (SHARE in lib/util.ts).
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "Open Box Ventures LLP Panel", template: "%s | Open Box Ventures LLP" },

@@ -4,7 +4,7 @@ export const DEFAULT_TZ = "Asia/Kolkata";
 const DOMAIN = "https://panel.openboxventures.in";
 export const SITE_URL = process.env.VERCEL_ENV === "production" ? DOMAIN : (process.env.NEXT_PUBLIC_SITE_URL ?? DOMAIN);
 // Shared-link preview defaults. Page-level openGraph/twitter replace the parent's, so pages spread these.
-const OG_IMAGE = { url: "/og-image.png", width: 1730, height: 909, alt: "Open Box Ventures LLP Panel: attendance, leave, payroll, HR, chat and meetings" };
+const OG_IMAGE = { url: "/og-image.jpg", width: 1200, height: 630, alt: "Open Box Ventures LLP Panel: attendance, leave, payroll, HR, chat and meetings" };
 export const SHARE = {
   openGraph: { type: "website", siteName: "Open Box Ventures LLP Panel", locale: "en_IN", images: OG_IMAGE },
   twitter: { card: "summary_large_image", images: OG_IMAGE },
