@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Building2, Globe, Hash, History, Megaphone, SquarePen, Users } from "lucide-react";
 import { db } from "@/lib/supabase";
+import { dmName } from "@/lib/util";
 import { pageMe } from "@/lib/me";
 import { adminNav, employeeNav } from "@/lib/nav";
 import { Shell } from "@/components/shell";
@@ -49,6 +50,14 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((c: any): Row => ({ id: c.id, type: c.type, name: c.name, unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: c.office?.name ?? c.department?.office?.name ?? null }))
     : [];
+  // admins: every DM between two employees, read-only, named "A & B"
+  const dms = me.role === "admin"
+    ? ((await db().from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm")).data ?? [])
+        .filter((c) => !rows.some((r) => r.id === c.id))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((c: any): Row => ({ id: c.id, type: "dm", name: dmName(c.members), unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: null }))
+        .sort((a, b) => a.name!.localeCompare(b.name!))
+    : [];
   // office channel first, then its departments
   const officeRows = rows.filter((r) => r.type === "office" || r.type === "department").sort((a, b) => Number(b.type === "office") - Number(a.type === "office"));
   const offices = [...new Map(officeRows.map((r) => [r.office_id, r.office_name])).entries()];
@@ -70,6 +79,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
           <Group title="Groups" rows={rows.filter((r) => r.type === "group" && !r.announcements)} />
           <Group title="Direct messages" rows={rows.filter((r) => r.type === "dm")} />
           <Group title="All group chats (view only)" rows={others.map((r) => ({ ...r, name: r.office_name && r.type === "department" ? `${r.office_name} / ${r.name}` : r.name }))} />
+          <Group title="All direct messages (view only)" rows={dms} />
           {!rows.length && <p className="px-3 py-6 text-sm text-muted">No conversations yet. Start one from the pencil above.</p>}
         </div>
       </ChatSidebar>

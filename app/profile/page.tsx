@@ -9,6 +9,7 @@ import { adminDb } from "@/lib/supabase";
 import { ActionForm } from "@/components/action-form";
 import { db } from "@/lib/supabase";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
+import { LiveRefresh } from "@/components/live-refresh";
 import { type Bank, BankForm, BankLock, BankUnlock } from "@/components/bank-form";
 import { Secret } from "@/components/secret";
 import { bankUnlocked } from "@/lib/bank-unlock";
@@ -58,6 +59,7 @@ export default async function Profile() {
 
   return (
     <main className="min-h-dvh lg:grid lg:grid-cols-[minmax(300px,380px)_1fr]">
+      <LiveRefresh meId={me.id} />
       <aside className="flex flex-col gap-8 border-b border-line bg-surface-2 px-4 py-6 sm:px-8 lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0 lg:py-10">
         <div className="flex items-center justify-between gap-4">
           <span className="flex min-w-0 items-center gap-2.5 font-semibold tracking-tight">

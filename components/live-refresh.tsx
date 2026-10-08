@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigatio
 import { Phone, PhoneOff } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
+import { CALL_ENDED } from "@/lib/util";
 
 // Re-renders server components when any published table changes in a row the user can read (RLS-filtered),
 // and when the tab comes back into view (catches events missed while asleep/offline).
@@ -81,6 +82,15 @@ export function LiveRefresh({ meId }: { meId: string }) {
     });
     // new message for me (RLS: only channels I'm in) → browser notification, unless I'm looking at that chat; calls ring
     const onMessage = async ({ new: m }: { new: Msg }) => {
+      // call ended (by anyone, incl. me in another tab) → stop ringing for that channel
+      if (m.body?.startsWith(CALL_ENDED)) {
+        setRinging((r) => {
+          if (r?.channel !== m.channel_id) return r;
+          stopRing.current();
+          return null;
+        });
+        return;
+      }
       if (!m.sender_id || m.sender_id === meId) return; // system posts (announcements) don't ping
       const href = `/chat/${m.channel_id}`;
       const call = m.body?.startsWith(CALL);

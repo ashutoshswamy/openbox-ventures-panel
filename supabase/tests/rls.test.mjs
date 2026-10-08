@@ -492,8 +492,11 @@ assert.equal(await as("u_admin", `update channels set name = 'Team leads' where 
 assert.equal(await as("u_admin", "delete from channels where type = 'global' returning 1"), "", "system channels stay");
 assert.equal(await as("u_e1", `delete from channels where id = '${leads}' returning 1`), "");
 assert.equal(await as("u_admin", `delete from channels where id = '${leads}' returning 1`), "1");
-// admins read every non-DM channel, never DMs
-assert.equal(await as("u_admin", `select count(*) from messages where channel_id = '${dm}'`), "0", "admin can't read employee DMs");
+// admins read every channel, employee DMs included, and see who's in a DM
+assert.equal(await as("u_admin", `select count(*) from messages where channel_id = '${dm}' and body = 'hi'`), "1", "admin reads employee DMs");
+assert.equal(await as("u_admin", `select count(*) from channel_members where channel_id = '${dm}'`), "2", "admin sees DM members");
+assert.match(await err("u_admin", `insert into messages(channel_id, sender_id, body) select '${dm}', id, 'x' from employees where email = 'a@x.com'`), /row-level security/, "DMs read only");
+assert.equal(await as("u_mgr", `select count(*) from messages where channel_id = '${dm}'`), "0", "other employees still can't");
 const grpMsg = await as("u_e1", `insert into messages(channel_id, sender_id, body) select '${grp}', id, 'group hi' from employees where email = 'e1@x.com' returning id`);
 assert.equal(await as("u_admin", `select body from messages where id = '${grpMsg}'`), "group hi", "admin reads group chats");
 assert.match(await err("u_admin", `insert into messages(channel_id, sender_id, body) select '${grp}', id, 'x' from employees where email = 'a@x.com'`), /row-level security/, "read only");

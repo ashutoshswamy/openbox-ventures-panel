@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { CALL_ENDED, DEFAULT_TZ, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
+import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { Attachment } from "@/components/attachment";
@@ -72,11 +72,11 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   ]);
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
-  // admins read any group / department / office channel they're not in (RLS: admin_read), without joining it
+  // admins read any channel they're not in, DMs between employees included (RLS: admin_read), without joining it
   const viewOnly = !channel && me.role === "admin";
   if (viewOnly) {
-    const { data: c } = await sb.from("channels").select("id, type, name, announcements").eq("id", id).neq("type", "dm").maybeSingle();
-    channel = c ? { ...c, avatar_url: null } : undefined;
+    const { data: c } = await sb.from("channels").select("id, type, name, announcements, members:channel_members(employee:employees(full_name))").eq("id", id).maybeSingle();
+    channel = c ? { ...c, name: c.type === "dm" ? dmName(c.members as never) : c.name, avatar_url: null } : undefined;
   }
   if (!channel) notFound();
   if (!viewOnly) await markRead(id);
@@ -158,7 +158,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           <Eye className="size-4" /> Viewing as admin. You aren&apos;t a member, so you can read but not post.
         </p>
       ) : channel.announcements ? (
-        me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? (
+        me.role === "admin" || me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
             <Link href={me.role === "hr" ? "/hr/announcements" : "/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>
           </div>
@@ -175,6 +175,8 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           <input name="body" autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
           <button className="btn btn-primary btn-icon" title="Send" aria-label="Send"><SendHorizontal /></button>
         </div>
+        {/* disclosure: admins can read every chat (RLS: admin_read) */}
+        {me.role !== "admin" && <p className="flex w-full items-center gap-1.5 px-1 pt-1 text-xs text-muted"><Eye className="size-3.5" /> Admins can view this conversation.</p>}
       </ActionForm>
       )}
     </>

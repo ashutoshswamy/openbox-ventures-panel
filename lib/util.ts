@@ -45,6 +45,10 @@ export function meetUrl(channelId: string, room: string) {
 
 export const roomOf = (url: string) => url.slice(-12);
 
+// Admin's read-only view of someone else's DM: "A & B"
+export const dmName = (members: { employee: { full_name: string } | null }[]) =>
+  members.map((m) => m.employee?.full_name ?? "Former employee").sort().join(" & ");
+
 export const CALL_ENDED = "Ended the video call: ";
 
 export function greeting(tz = DEFAULT_TZ) {
