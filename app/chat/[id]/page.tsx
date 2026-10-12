@@ -166,7 +166,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           </p>
         </div>
         {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
-        {!viewOnly && !channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
+        {!viewOnly && !channel.announcements && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
       <ol className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-y-auto px-4 py-4 md:px-6">
