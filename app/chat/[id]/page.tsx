@@ -107,14 +107,14 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     let q = sb.from("employees").select("full_name").eq("active", true).not("clerk_user_id", "is", null);
     if (meta.type === "department" && !meta.announcements) q = q.eq("department_id", meta.department_id!);
     else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
-    people = ((await q).data ?? []).map((p) => p.full_name);
+    people = [...((await q).data ?? []).map((p) => p.full_name), ...people]; // + people an admin/HR added from outside
   }
   const roster = [...new Set(people)].sort(); // everyone in the chat, me included
   people = roster.filter((n) => n !== me.full_name); // taggable
   const mention = [...people, me.full_name].sort((a, b) => b.length - a.length); // longest first so "Ann Lee" wins over "Ann"
   const tags = new RegExp(`(@(?:${mention.map(esc).join("|")}))`, "g");
-  // admins and HR can add people to a group chat
-  const canAdd = (me.role === "admin" || me.role === "hr") && channel.type === "group" && !channel.announcements;
+  // admins and HR can add people to group, department and office chats, whatever the person's own department/office
+  const canAdd = (me.role === "admin" || me.role === "hr") && ["group", "department", "office"].includes(channel.type) && !channel.announcements;
   let addable: { id: string; full_name: string }[] = [];
   if (canAdd) {
     const inChat = new Set(members.map((m) => m.employee_id));
@@ -201,7 +201,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             </Fragment>
           );
         })}
-        {hrOnly && <li className="empty m-auto"><Users />You can manage who is in this group, but its messages are private to its members.</li>}
+        {hrOnly && <li className="empty m-auto"><Users />You can manage who is in this chat, but its messages are private to its members.</li>}
         {!hrOnly && !messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
