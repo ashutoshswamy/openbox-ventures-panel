@@ -9,7 +9,7 @@ import type { NavLink } from "./nav";
 type Item = { href: string; label: string; sub?: string; kind: Hit["kind"] | "Page" };
 
 // Cmd/Ctrl+K palette: this panel's pages (filtered here) + people, chats, to-dos (server, RLS-scoped).
-export function GlobalSearch({ links }: { links: NavLink[] }) {
+export function GlobalSearch({ links, demo }: { links: NavLink[]; demo?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -29,10 +29,10 @@ export function GlobalSearch({ links }: { links: NavLink[] }) {
   }, []);
 
   useEffect(() => {
-    if (q.trim().length < 2) return;
+    if (demo || q.trim().length < 2) return; // demo: pages only, no server call
     const t = setTimeout(() => start(async () => setHits(await search(q).catch(() => []))), 200);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, demo]);
 
   const term = q.trim().toLowerCase();
   const pages: Item[] = links.filter(([, label]) => !term || label.toLowerCase().includes(term)).map(([href, label]) => ({ href, label, kind: "Page" }));

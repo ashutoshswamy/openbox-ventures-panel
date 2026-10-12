@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import { AuthFrame } from "@/components/auth-frame";
@@ -31,6 +32,7 @@ export default function Page() {
     <AuthFrame>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
       <SignIn />
+      <Link href="/demo" className="btn btn-ghost mt-4 w-full">Try the demo</Link>
     </AuthFrame>
   );
 }

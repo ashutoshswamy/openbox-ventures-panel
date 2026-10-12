@@ -30,7 +30,7 @@ export type NavIcon = keyof typeof icons;
 export type NavLink = [href: string, label: string, icon: NavIcon, count?: number];
 
 function active(path: string, href: string) {
-  return href === "/" || href === "/admin" || href === "/hr" ? path === href : path === href || path.startsWith(href + "/");
+  return href === "/" || href === "/admin" || href === "/hr" || /^\/demo\/(workspace|admin|hr)$/.test(href) ? path === href : path === href || path.startsWith(href + "/");
 }
 
 export function Nav({ links }: { links: NavLink[] }) {
