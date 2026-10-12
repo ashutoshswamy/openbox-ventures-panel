@@ -123,11 +123,7 @@ export default function Channel() {
         {id !== ANN_ID && !messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
-      {viewOnly ? (
-        <p className="flex items-center justify-center gap-2 border-t border-line p-4 text-sm text-muted">
-          <Eye className="size-4" /> Viewing as admin. You aren&apos;t a member, so you can read but not post.
-        </p>
-      ) : channel.announcements ? (
+      {channel.announcements ? (
         role === "admin" || role === "manager" || role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
             <Link href={role === "hr" ? "/demo/hr/announcements" : "/demo/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>

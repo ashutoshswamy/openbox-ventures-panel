@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { pageMe } from "@/lib/me";
-import { db } from "@/lib/supabase";
+import { adminDb, db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
@@ -81,6 +81,13 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   if (!channel) notFound();
   if (!viewOnly) await markRead(id);
   const messages = (data ?? []) as unknown as Msg[];
+  // RLS hides admin rows from everyone else; look up just their name + photo so admin messages show who sent them (never email/phone)
+  const hidden = [...new Set(messages.filter((m) => m.sender_id && !m.sender).map((m) => m.sender_id!))];
+  if (hidden.length) {
+    const { data: rows } = await adminDb().from("employees").select("id, full_name, avatar_url").in("id", hidden);
+    const by = new Map((rows ?? []).map((r) => [r.id, r]));
+    for (const m of messages) if (m.sender_id && !m.sender) m.sender = by.get(m.sender_id) ?? null;
+  }
   const name = channel.name ?? "Unnamed";
   const liveCall = viewOnly ? null : liveCallOf(messages);
 
@@ -153,11 +160,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         {!messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
-      {viewOnly ? (
-        <p className="flex items-center justify-center gap-2 border-t border-line p-4 text-sm text-muted">
-          <Eye className="size-4" /> Viewing as admin. You aren&apos;t a member, so you can read but not post.
-        </p>
-      ) : channel.announcements ? (
+      {channel.announcements ? (
         me.role === "admin" || me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
             <Link href={me.role === "hr" ? "/hr/announcements" : "/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>

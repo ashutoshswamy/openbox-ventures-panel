@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { requireAdmin, requireStaff, type Role } from "@/lib/me";
-import { db } from "@/lib/supabase";
+import { parseProfile } from "@/lib/profile";
+import { adminDb, db } from "@/lib/supabase";
 import { DEFAULT_TZ, SITE_URL, str, zonedIso } from "@/lib/util";
 
 // Writes go through db() (user's token), so RLS double-checks every require*() below.
@@ -178,6 +179,42 @@ export async function updateEmployee(fd: FormData) {
   } catch (e) {
     return (e as Error).message;
   }
+  done();
+}
+
+// Admin + HR (own office) edit someone's personal details. A reason is required and lands in the audit log.
+// Server key on purpose: employee_profiles RLS lets HR see nothing, so scope is checked here.
+export async function editPersonalDetails(fd: FormData) {
+  const me = await requireStaff();
+  if (me.role !== "admin" && me.role !== "hr") return "Not allowed";
+  const id = str(fd, "id");
+  const reason = str(fd, "reason");
+  if (!id) return "Missing employee";
+  if (!reason || reason.length < 5) return "Give a reason for the change (at least 5 characters)";
+  if (reason.length > 500) return "Reason is too long";
+  const parsed = parseProfile(fd);
+  if (typeof parsed === "string") return parsed;
+
+  const sb = adminDb();
+  const [{ data: emp }, { data: old }] = await Promise.all([
+    sb.from("employees").select("office_id, full_name, alias_name, role").eq("id", id).maybeSingle(),
+    sb.from("employee_profiles").select("*").eq("employee_id", id).maybeSingle(),
+  ]);
+  if (!emp || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return "Not allowed";
+
+  const next = { full_name: parsed.name, alias_name: parsed.alias, ...parsed.profile };
+  const prev: Record<string, unknown> = { full_name: emp.full_name, alias_name: emp.alias_name, ...old };
+  const changed = Object.keys(next).filter((k) => (prev[k] ?? null) !== next[k as keyof typeof next]);
+  if (!changed.length) return "Nothing changed";
+
+  const { error } = await sb.from("employee_profiles").upsert({ employee_id: id, ...parsed.profile, updated_at: new Date().toISOString() });
+  if (error) return error.message;
+  await sb.from("employees").update({ full_name: parsed.name, alias_name: parsed.alias }).eq("id", id);
+  await sb.from("audit_log").insert({
+    actor_id: me.id, employee_id: id, action: "update", table_name: "employee_profiles", row_id: id, reason,
+    old: Object.fromEntries(changed.map((k) => [k, prev[k] ?? null])),
+    new: Object.fromEntries(changed.map((k) => [k, next[k as keyof typeof next]])),
+  });
   done();
 }
 

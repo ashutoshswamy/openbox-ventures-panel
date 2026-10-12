@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
-import { db } from "@/lib/supabase";
+import { adminDb, db } from "@/lib/supabase";
 import { fmtDate } from "@/lib/util";
 import { Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { PageHeader } from "@/components/shell";
-import { inviteEmployee, resendInvite, setActive, updateEmployee } from "../actions";
+import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee } from "../actions";
 
 export const metadata = { title: "Employees" };
 
@@ -75,36 +75,61 @@ type Profile = {
   company: string | null; lgoob_alias: string | null; lgoob_email: string | null; fusion_alias: string | null; fusion_email: string | null;
 };
 
-function Details({ p }: { p?: Profile }) {
+const GENDERS = ["Female", "Male", "Non-binary", "Prefer not to say"];
+const BLOOD = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+
+// Admin/HR edit of someone's personal details. Every save needs a reason (goes to the audit log).
+function Details({ e, p }: { e: Emp; p?: Profile }) {
   if (!p) return <p className="flex items-center gap-2 text-sm text-amber"><ClipboardList className="size-4" /> Hasn&apos;t filled in their personal details yet.</p>;
-  const rows: [string, React.ReactNode][] = [
-    ["Date of birth", fmtDate(p.date_of_birth)],
-    ["Gender", p.gender],
-    ["Mobile", <a key="m" href={`tel:${p.phone}`} className="hover:text-primary">{p.phone}</a>],
-    ["Personal email", p.personal_email],
-    ["Blood group", p.blood_group],
-    ["Company", { lgoob: "LGOOB", fusion: "Fusion Freights", both: "LGOOB & Fusion Freights" }[p.company ?? ""]],
-    ...(p.lgoob_alias ? [["LGOOB alias / email", `${p.lgoob_alias} · ${p.lgoob_email}`] as [string, string]] : []),
-    ...(p.fusion_alias ? [["Fusion Freights alias / email", `${p.fusion_alias} · ${p.fusion_email}`] as [string, string]] : []),
-    ["Emergency contact", `${p.emergency_name} (${p.emergency_relation}) · ${p.emergency_phone}`],
-    ["Current address", p.current_address],
-    ["Permanent address", p.permanent_address],
-  ];
   return (
-    <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-      {rows.map(([k, v]) => (
-        <div key={k} className={k.includes("address") ? "sm:col-span-2" : ""}>
-          <dt className="text-xs text-muted">{k}</dt>
-          <dd className="whitespace-pre-wrap">{v || "-"}</dd>
+    <ActionForm action={editPersonalDetails} keep success="Saved" className="company grid gap-4 sm:grid-cols-2">
+      <input type="hidden" name="id" value={e.id} />
+      <label className="field">Full name<input name="full_name" required defaultValue={e.full_name} className="input" /></label>
+      <label className="field">Alias name<input name="alias_name" maxLength={60} defaultValue={e.alias_name ?? ""} className="input" /></label>
+      <label className="field">Date of birth<input type="date" name="date_of_birth" required defaultValue={p.date_of_birth} className="input" /></label>
+      <label className="field">Gender
+        <select name="gender" defaultValue={p.gender ?? ""} className="input">
+          <option value="">-</option>
+          {GENDERS.map((g) => <option key={g}>{g}</option>)}
+        </select>
+      </label>
+      <label className="field">Mobile<input type="tel" name="phone" required defaultValue={p.phone} className="input" /></label>
+      <label className="field">Personal email<input type="email" name="personal_email" defaultValue={p.personal_email ?? ""} className="input" /></label>
+      <label className="field">Blood group
+        <select name="blood_group" defaultValue={p.blood_group ?? ""} className="input">
+          <option value="">-</option>
+          {BLOOD.map((b) => <option key={b}>{b}</option>)}
+        </select>
+      </label>
+      <div className="field" role="radiogroup" aria-label="Company">
+        <span>Company</span>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {[["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"]].map(([v, l]) => (
+            <label key={v} className="check"><input type="radio" name="company" value={v} required defaultChecked={p.company === v} /> {l}</label>
+          ))}
         </div>
-      ))}
-    </dl>
+      </div>
+      <label className="lg field">LGOOB alias name<input name="lgoob_alias" maxLength={60} defaultValue={p.lgoob_alias ?? ""} className="input" /></label>
+      <label className="lg field">LGOOB email<input type="email" name="lgoob_email" defaultValue={p.lgoob_email ?? ""} className="input" /></label>
+      <label className="ff field">Fusion Freights alias name<input name="fusion_alias" maxLength={60} defaultValue={p.fusion_alias ?? ""} className="input" /></label>
+      <label className="ff field">Fusion Freights email<input type="email" name="fusion_email" defaultValue={p.fusion_email ?? ""} className="input" /></label>
+      <label className="field sm:col-span-2">Current address<textarea name="current_address" required rows={2} defaultValue={p.current_address} className="input" /></label>
+      <label className="field sm:col-span-2">Permanent address<textarea name="permanent_address" rows={2} defaultValue={p.permanent_address ?? ""} className="input" /></label>
+      <label className="field">Emergency contact name<input name="emergency_name" required defaultValue={p.emergency_name} className="input" /></label>
+      <label className="field">Relationship<input name="emergency_relation" required defaultValue={p.emergency_relation} className="input" /></label>
+      <label className="field">Emergency phone<input type="tel" name="emergency_phone" required defaultValue={p.emergency_phone} className="input" /></label>
+      <label className="field sm:col-span-2">Reason for the change
+        <input name="reason" required minLength={5} maxLength={500} placeholder="e.g. Employee sent a corrected ID by email" className="input" />
+      </label>
+      <div className="sm:col-span-2"><button className="btn btn-primary"><Save /> Save details</button></div>
+    </ActionForm>
   );
 }
 
 export default async function Employees({ searchParams }: PageProps<"/admin/employees">) {
   const me = await staffPage();
   const isAdmin = me.role === "admin";
+  const canEdit = isAdmin || me.role === "hr"; // personal details; HR is limited to their office by the query below
   const { q, status: st } = await searchParams;
   const status = st === "active" || st === "inactive" ? st : "all";
   const sb = db();
@@ -128,7 +153,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const linked = (emps ?? []).flatMap((e: Emp) => (e.clerk_user_id ? [e.clerk_user_id] : []));
   const [users, { data: profiles }] = await Promise.all([
     linked.length ? (await clerkClient()).users.getUserList({ userId: linked, limit: 500 }) : { data: [] },
-    isAdmin ? sb.from("employee_profiles").select("*") : { data: [] },
+    canEdit ? adminDb().from("employee_profiles").select("*").in("employee_id", (emps ?? []).map((e: Emp) => e.id)) : { data: [] }, // server key: RLS hides profiles from HR
   ]);
   const profileOf = (id: string) => (profiles as Profile[] | null)?.find((p) => p.employee_id === id);
   const roleOf = (e: Emp) => (users.data.find((u) => u.id === e.clerk_user_id)?.publicMetadata?.role as Role | undefined) ?? null;
@@ -182,7 +207,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
             return (
               <li key={e.id}>
                 <details className={`group ${e.active ? "" : "opacity-60"}`}>
-                  <summary className={`flex items-center gap-3 px-5 py-4 ${isAdmin ? "cursor-pointer hover:bg-surface-2/50" : ""}`}>
+                  <summary className={`flex items-center gap-3 px-5 py-4 ${canEdit ? "cursor-pointer hover:bg-surface-2/50" : ""}`}>
                     <Avatar name={e.full_name} src={e.avatar_url} />
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-center gap-x-2">
@@ -198,16 +223,17 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                       {r && r !== "employee" && <span className="badge badge-teal capitalize"><ShieldCheck /> {r.replace("_", " ")}</span>}
                       {status && StatusIcon && <span className={`badge ${STATUS[status][0]}`}><StatusIcon /> {status}</span>}
                     </span>
-                    {isAdmin && <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" />}
+                    {canEdit && <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" />}
                   </summary>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="space-y-4 bg-surface-2/40 px-5 py-5">
                       {e.clerk_user_id && r !== "admin" && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="eyebrow mb-3 flex items-center gap-1.5"><ClipboardList className="size-3.5" /> Personal details</h3>
-                          <Details p={profileOf(e.id)} />
+                          <Details e={e} p={profileOf(e.id)} />
                         </section>
                       )}
+                      {isAdmin && <>
                       <ActionForm action={updateEmployee} keep success="Saved" className="grid gap-4 sm:grid-cols-2">
                         <input type="hidden" name="id" value={e.id} />
                         <input type="hidden" name="old_role" value={r ?? ""} />
@@ -227,6 +253,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                           {e.active ? <button className="btn btn-ghost btn-danger"><UserX /> Deactivate</button> : <button className="btn"><UserCheck /> Reactivate</button>}
                         </ActionForm>
                       </div>
+                      </>}
                     </div>
                   )}
                 </details>

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shell";
 export const metadata = { title: "Audit log" };
 
 const TABLES: Record<string, string> = {
-  employees: "Employee", employee_salaries: "Salary", employee_bank: "Bank details", payroll_runs: "Salary sheet", payroll_lines: "Salary sheet line",
+  employees: "Employee", employee_profiles: "Personal details", employee_salaries: "Salary", employee_bank: "Bank details", payroll_runs: "Salary sheet", payroll_lines: "Salary sheet line",
   leave_requests: "Leave", regularizations: "Regularization", leave_types: "Leave type", holidays: "Holiday", offices: "Office", departments: "Department",
 };
 const TONE = { insert: "badge-green", update: "badge-blue", delete: "badge-red" } as const;
@@ -15,7 +15,7 @@ const PAGE = 100;
 const val = (v: unknown) => (v == null ? "-" : typeof v === "object" ? JSON.stringify(v) : String(v));
 const at = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
-type Row = { id: number; at: string; actor_id: string | null; employee_id: string | null; action: keyof typeof TONE; table_name: string; old: Record<string, unknown> | null; new: Record<string, unknown> | null };
+type Row = { id: number; at: string; actor_id: string | null; employee_id: string | null; action: keyof typeof TONE; table_name: string; reason: string | null; old: Record<string, unknown> | null; new: Record<string, unknown> | null };
 
 // Written by the audit() trigger (supabase/migrations/…_payslips_and_audit.sql). Newest first, keyset paging on id.
 export default async function Audit({ searchParams }: PageProps<"/admin/audit">) {
@@ -64,6 +64,7 @@ export default async function Audit({ searchParams }: PageProps<"/admin/audit">)
                     <td className="whitespace-nowrap"><span className={`badge ${TONE[r.action]}`}>{r.action}</span> {TABLES[r.table_name] ?? r.table_name}</td>
                     <td className="whitespace-nowrap">{r.employee_id ? <Link href={link({ employee: r.employee_id, before: null })} className="hover:underline">{name(r.employee_id)}</Link> : "-"}</td>
                     <td className="min-w-64 text-xs">
+                      {r.reason && <p className="mb-1"><span className="text-muted">Reason:</span> {r.reason}</p>}
                       {r.action === "update" ? (
                         <ul className="space-y-0.5">
                           {Object.keys(r.new ?? {}).map((k) => (
