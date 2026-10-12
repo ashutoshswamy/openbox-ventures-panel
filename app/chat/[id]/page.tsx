@@ -100,7 +100,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         </ActionForm>
       </div>
     );
-  // tagging: only people in this chat. Group/DM = its members; department/office = everyone in it; company channels = everyone.
+  // tagging: people in this chat; admins only for admins and HR. Group/DM = its members; department/office = everyone in it; company channels = everyone.
   const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string } | null }[]).filter((m) => m.employee);
   let people = members.map((m) => m.employee!.full_name);
   if (meta.type === "department" || meta.type === "office" || meta.type === "global" || meta.announcements) {
@@ -108,6 +108,11 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     if (meta.type === "department" && !meta.announcements) q = q.eq("department_id", meta.department_id!);
     else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
     people = [...((await q).data ?? []).map((p) => p.full_name), ...people]; // + people an admin/HR added from outside
+  }
+  // admins aren't members (RLS hides them), so only admins and HR get them (names only) in the taggable list
+  if (me.role === "admin" || me.role === "hr") {
+    const { data: admins } = await adminDb().from("employees").select("full_name").eq("role", "admin").eq("active", true);
+    people.push(...(admins ?? []).map((a) => a.full_name));
   }
   const roster = [...new Set(people)].sort(); // everyone in the chat, me included
   people = roster.filter((n) => n !== me.full_name); // taggable
