@@ -15,3 +15,8 @@ export async function unlockDms(fd: FormData) {
   await dms.set(me.id);
   revalidatePath("/chat", "layout");
 }
+
+export async function lockDms() {
+  await dms.clear();
+  revalidatePath("/chat", "layout");
+}

@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { History, SquarePen } from "lucide-react";
+import { History, Lock, SquarePen } from "lucide-react";
 import { db } from "@/lib/supabase";
 import { dmName } from "@/lib/util";
 import { pageMe } from "@/lib/me";
 import { adminNav, employeeNav } from "@/lib/nav";
 import { Shell } from "@/components/shell";
+import { dms } from "@/lib/dm-unlock";
+import { ActionForm } from "@/components/action-form";
+import { DmLock } from "@/components/dm-lock";
+import { lockDms } from "@/app/chat/actions";
 import { ChatSidebar } from "@/components/live-refresh";
 import { ChatList, type Row } from "@/components/chat-list";
 
@@ -14,12 +18,13 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
   const admin = me.role === "admin";
   const hr = me.role === "hr"; // sees group chats (not messages) to manage members, RLS: hr_read
   const sb = db();
+  const dmsOpen = admin && (await dms.unlocked(me.id)); // other people's DMs stay hidden until the admin re-enters their password
   // one parallel round trip; admins also load every other group / department / office channel and every DM (read-only)
   const [nav, { data }, { data: allGroups }, { data: allDms }] = await Promise.all([
     admin ? adminNav(me) : employeeNav(me),
     sb.rpc("my_channels"),
     admin || hr ? sb.from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name") : { data: [] },
-    admin ? sb.from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm") : { data: [] },
+    dmsOpen ? sb.from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm") : { data: [] },
   ]);
   const rows = (data ?? []) as Row[];
   const others = (allGroups ?? [])
@@ -27,7 +32,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((c: any): Row => ({ id: c.id, type: c.type, name: c.name, unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: c.office?.name ?? c.department?.office?.name ?? null }));
   // named "A & B"
-  const dms = (allDms ?? [])
+  const dmRows = (allDms ?? [])
     .filter((c) => !rows.some((r) => r.id === c.id))
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((c: any): Row => ({ id: c.id, type: "dm", name: dmName(c.members), unread: 0, announcements: false, avatar_url: null, office_id: null, office_name: null }))
@@ -54,12 +59,14 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
             { title: "Direct messages", rows: rows.filter((r) => r.type === "dm") },
             { title: hr ? "All group chats (manage members)" : "All group chats", rows: others.filter((r) => r.type !== "group"), nest: true },
             { title: "Other group chats", rows: others.filter((r) => r.type === "group") },
-            { title: "All direct messages", rows: dms },
+            { title: "All direct messages", rows: dmRows },
           ]} />
+          {admin && !dmsOpen && <DmLock />}
+          {dmsOpen && <ActionForm action={lockDms} className="mb-5 px-2.5"><button className="text-xs font-medium text-muted hover:text-text"><Lock className="mr-1 inline size-3.5" />Lock direct messages</button></ActionForm>}
           {!rows.length && <p className="px-3 py-6 text-sm text-muted">No conversations yet. Start one from the pencil above.</p>}
         </div>
       </ChatSidebar>
-      <section className="flex min-w-0 flex-1 flex-col">{children}</section>
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">{children}</section>
     </div>
     </Shell>
   );
