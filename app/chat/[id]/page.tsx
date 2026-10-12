@@ -70,7 +70,7 @@ function liveCallOf(messages: Msg[]) {
 }
 
 function Tick({ state }: { state: "sent" | "delivered" | "read" }) {
-  const cls = `ml-1 inline size-3.5 align-[-2px] ${state === "read" ? "text-sky-300" : "opacity-70"}`;
+  const cls = `ml-1 inline size-3.5 align-[-2px] ${state === "read" ? "text-sky-300 dark:text-blue-700" : "opacity-70"}`;
   return state === "sent" ? <Check className={cls} aria-label="Sent" /> : <CheckCheck className={cls} aria-label={state === "read" ? "Read" : "Delivered"} />;
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigation";
-import { Phone, PhoneOff } from "lucide-react";
+import { Bell, MapPin, Phone, PhoneOff, Volume2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { CALL_AUDIO, CALL_ENDED, CALL_VIDEO } from "@/lib/util";
@@ -25,7 +25,8 @@ function ring() {
     for (const [f, t] of [[880, 0], [660, 0.25], [880, 0.5], [660, 0.75]]) {
       const o = ctx.createOscillator(), g = ctx.createGain(), at = ctx.currentTime + t;
       o.frequency.value = f;
-      g.gain.setValueAtTime(0.15, at);
+      o.type = "square"; // harmonic-rich = cuts through
+      g.gain.setValueAtTime(0.5, at);
       g.gain.exponentialRampToValueAtTime(0.001, at + 0.22);
       o.connect(g).connect(ctx.destination);
       o.start(at);
@@ -38,18 +39,18 @@ function ring() {
 }
 
 // Short two-note chime: higher + brighter for a tag (@me), softer for a plain message.
-function ding(tag: boolean) {
+export function ding(tag: boolean) {
   if (!audio) return;
   const ctx = audio;
   for (const [f, t] of tag ? [[988, 0], [1319, 0.12]] : [[698, 0], [880, 0.1]]) {
     const o = ctx.createOscillator(), g = ctx.createGain(), at = ctx.currentTime + t;
-    o.type = "sine";
+    o.type = "triangle"; // louder + clearer than sine at the same gain
     o.frequency.value = f;
-    g.gain.setValueAtTime(tag ? 0.2 : 0.12, at);
-    g.gain.exponentialRampToValueAtTime(0.001, at + 0.25);
+    g.gain.setValueAtTime(tag ? 0.8 : 0.6, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.3);
     o.connect(g).connect(ctx.destination);
     o.start(at);
-    o.stop(at + 0.26);
+    o.stop(at + 0.31);
   }
 }
 
@@ -63,12 +64,11 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
   const [ringing, setRinging] = useState<Ringing | null>(null);
   const stopRing = useRef<() => void>(() => {});
 
-  // first click/key unlocks sound and asks for notification permission (both need a user gesture in some browsers)
+  // first click/key unlocks sound (needs a user gesture); permissions are asked by <PermissionGate>
   useEffect(() => {
     const unlock = () => {
       audio ??= new AudioContext();
       audio.resume();
-      if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
     };
     window.addEventListener("pointerdown", unlock, { once: true });
     window.addEventListener("keydown", unlock, { once: true });
@@ -144,7 +144,15 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
     };
   }, [isSignedIn, getToken, router, meId, meName]);
 
-  if (!ringing) return null;
+  return (
+    <>
+      <PermissionGate />
+      {ringing && <CallPopup ringing={ringing} dismiss={dismiss} />}
+    </>
+  );
+}
+
+function CallPopup({ ringing, dismiss }: { ringing: Ringing; dismiss: () => void }) {
   return (
     <div role="alertdialog" aria-label={`${ringing.from} is calling`} className="fixed right-4 bottom-4 z-50 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 pl-4 shadow-lg">
       <span className="grid size-9 animate-pulse place-items-center rounded-full bg-primary text-primary-fg"><Phone className="size-4" /></span>
@@ -154,6 +162,72 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
       </div>
       <Link href={`/chat/${ringing.channel}`} onClick={dismiss} className="btn btn-primary"><Phone /> Answer</Link>
       <button type="button" onClick={dismiss} className="btn btn-icon" aria-label="Dismiss call" title="Dismiss"><PhoneOff /></button>
+    </div>
+  );
+}
+
+type Perm = "granted" | "denied" | "prompt" | "unsupported";
+const notifPerm = (): Perm => ("Notification" in window ? (Notification.permission === "default" ? "prompt" : Notification.permission) : "unsupported");
+const geoPerm = async (): Promise<Perm> => {
+  if (!("geolocation" in navigator)) return "unsupported";
+  try { return (await navigator.permissions.query({ name: "geolocation" })).state; } catch { return "prompt"; }
+};
+
+// Blocks the site until notifications + location (office check-in) are allowed and sound is unlocked.
+// Unsupported (e.g. iOS Safari outside a home-screen app) counts as fine; denied can only be fixed in browser settings.
+function PermissionGate() {
+  const [p, setP] = useState<{ n: Perm; g: Perm } | null>(null);
+  const [skip, setSkip] = useState(false);
+  const check = async () => setP({ n: notifPerm(), g: await geoPerm() });
+
+  useEffect(() => {
+    check();
+    const subs: PermissionStatus[] = [];
+    for (const name of ["notifications", "geolocation"] as const)
+      navigator.permissions?.query({ name }).then((s) => { s.onchange = check; subs.push(s); }).catch(() => {});
+    window.addEventListener("focus", check); // user came back from browser settings
+    return () => { window.removeEventListener("focus", check); subs.forEach((s) => (s.onchange = null)); };
+  }, []);
+
+  const allow = async () => {
+    audio ??= new AudioContext();
+    await audio.resume();
+    ding(true); // proves sound works; user sees/hears it
+    if (notifPerm() === "prompt") await Notification.requestPermission();
+    if ((await geoPerm()) === "prompt")
+      await new Promise((r) => navigator.geolocation.getCurrentPosition(r, r, { timeout: 15000 }));
+    check();
+  };
+
+  if (!p || skip) return null;
+  const ok = (x: Perm) => x === "granted" || x === "unsupported";
+  if (ok(p.n) && ok(p.g)) return null;
+  const denied = p.n === "denied" || p.g === "denied";
+  const row = (icon: React.ReactNode, label: string, why: string, s: Perm) => (
+    <li className="flex items-start gap-3">
+      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted">{icon}</span>
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="text-sm font-semibold">{label} <span className={`text-xs font-normal ${s === "denied" ? "text-red-600" : "text-muted"}`}>{ok(s) ? "allowed" : s === "denied" ? "blocked" : "needed"}</span></div>
+        <div className="text-xs text-muted">{why}</div>
+      </div>
+    </li>
+  );
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Allow permissions" className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-5 shadow-lg">
+        <h2 className="text-lg font-semibold">Allow a few permissions first</h2>
+        <p className="mt-1 text-sm text-muted">The panel needs these to work properly.</p>
+        <ul className="mt-4 flex flex-col gap-3">
+          {row(<Bell className="size-4" />, "Notifications", "Messages, mentions and incoming calls.", p.n)}
+          {row(<Volume2 className="size-4" />, "Sound", "Chimes and call ringtone. Unlocked when you tap the button.", "granted")}
+          {row(<MapPin className="size-4" />, "Location", "Office check-in.", p.g)}
+        </ul>
+        {denied && <p className="mt-4 rounded-lg bg-surface-2 p-3 text-xs text-muted">Blocked permissions can only be changed in your browser: click the lock icon in the address bar → Site settings → allow, then come back to this tab.</p>}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" onClick={allow} className="btn btn-primary flex-1">{denied ? "Check again" : "Allow all"}</button>
+          {denied && <button type="button" onClick={() => setSkip(true)} className="btn">Continue anyway</button>}
+        </div>
+      </div>
     </div>
   );
 }
