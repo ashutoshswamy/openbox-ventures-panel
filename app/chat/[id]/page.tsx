@@ -7,6 +7,7 @@ import { adminDb, db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
+import { AddMembers } from "@/components/add-members";
 import { MentionInput } from "@/components/mention-input";
 import { Attachment } from "@/components/attachment";
 import { Avatar } from "@/components/avatar";
@@ -70,23 +71,39 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
   const me = await pageMe();
   const sb = db();
-  const [{ data: channels }, { data }, { data: staff }] = await Promise.all([
+  const [{ data: channels }, { data }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
     sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
-    sb.from("employees").select("full_name").eq("active", true).not("clerk_user_id", "is", null).order("full_name"),
+    sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, employee:employees(full_name))").eq("id", id).maybeSingle(),
   ]);
-  const people = (staff ?? []).map((p) => p.full_name);
-  const mention = [...people, me.full_name].sort((a, b) => b.length - a.length); // longest first so "Ann Lee" wins over "Ann"
-  const tags = new RegExp(`(@(?:${[...new Set(mention)].map(esc).join("|")}))`, "g");
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
   // admins read any channel they're not in, DMs between employees included (RLS: admin_read), without joining it
-  const viewOnly = !channel && me.role === "admin";
-  if (viewOnly) {
-    const { data: c } = await sb.from("channels").select("id, type, name, announcements, members:channel_members(employee:employees(full_name))").eq("id", id).maybeSingle();
-    channel = c ? { ...c, name: c.type === "dm" ? dmName(c.members as never) : c.name, avatar_url: null } : undefined;
+  // HR sees group chats they're not in only to manage who's in them (RLS: hr_read), never their messages
+  const viewOnly = !channel && (me.role === "admin" || me.role === "hr");
+  if (viewOnly && meta) channel = { ...meta, name: meta.type === "dm" ? dmName(meta.members as never) : meta.name, avatar_url: null };
+  if (!channel || !meta) notFound();
+  const hrOnly = viewOnly && me.role === "hr";
+  // tagging: only people in this chat. Group/DM = its members; department/office = everyone in it; company channels = everyone.
+  const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string } | null }[]).filter((m) => m.employee);
+  let people = members.map((m) => m.employee!.full_name);
+  if (meta.type === "department" || meta.type === "office" || meta.type === "global" || meta.announcements) {
+    let q = sb.from("employees").select("full_name").eq("active", true).not("clerk_user_id", "is", null);
+    if (meta.type === "department" && !meta.announcements) q = q.eq("department_id", meta.department_id!);
+    else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
+    people = ((await q).data ?? []).map((p) => p.full_name);
   }
-  if (!channel) notFound();
+  people = [...new Set(people)].filter((n) => n !== me.full_name).sort();
+  const mention = [...people, me.full_name].sort((a, b) => b.length - a.length); // longest first so "Ann Lee" wins over "Ann"
+  const tags = new RegExp(`(@(?:${mention.map(esc).join("|")}))`, "g");
+  // admins and HR can add people to a group chat
+  const canAdd = (me.role === "admin" || me.role === "hr") && channel.type === "group" && !channel.announcements;
+  let addable: { id: string; full_name: string }[] = [];
+  if (canAdd) {
+    const inChat = new Set(members.map((m) => m.employee_id));
+    const { data: all } = await sb.from("employees").select("id, full_name").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
+    addable = (all ?? []).filter((e) => !inChat.has(e.id));
+  }
   if (!viewOnly) await markRead(id);
   const messages = (data ?? []) as unknown as Msg[];
   // RLS hides admin rows from everyone else; look up just their name + photo so admin messages show who sent them (never email/phone)
@@ -116,6 +133,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
+        {canAdd && <AddMembers channelId={id} people={addable} />}
         {!viewOnly && !channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
@@ -141,7 +159,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             </li>
           );
         })}
-        {!channel.announcements && messages.map((m, i) => {
+        {!channel.announcements && !hrOnly && messages.map((m, i) => {
           const mine = m.sender_id === me.id;
           const older = messages[i + 1];
           const first = !older || older.sender_id !== m.sender_id; // first of a run (list is newest-first)
@@ -165,10 +183,11 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             </Fragment>
           );
         })}
-        {!messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
+        {hrOnly && <li className="empty m-auto"><Users />You can manage who is in this group, but its messages are private to its members.</li>}
+        {!hrOnly && !messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
-      {channel.announcements ? (
+      {hrOnly ? null : channel.announcements ? (
         me.role === "admin" || me.role === "manager" || me.role === "branch_head" || me.role === "hr" ? (
           <div className="flex justify-center border-t border-line p-3">
             <Link href={me.role === "hr" ? "/hr/announcements" : "/admin/announcements"} className="btn btn-primary"><Megaphone /> Post an announcement</Link>
@@ -183,7 +202,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         <input type="hidden" name="channel_id" value={id} />
         <div className="flex w-full items-center gap-1 rounded-xl border border-line bg-surface p-1 pl-1.5 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10">
           <AttachInput name="attachment" />
-          <MentionInput name="body" people={people.filter((n) => n !== me.full_name)} autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
+          <MentionInput name="body" people={people} autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
           <button className="btn btn-primary btn-icon" title="Send" aria-label="Send"><SendHorizontal /></button>
         </div>
         {/* disclosure: admins can read every chat (RLS: admin_read) */}

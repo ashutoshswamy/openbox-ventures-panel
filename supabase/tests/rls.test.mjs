@@ -511,4 +511,11 @@ assert.equal(await as("u_mgr", `select count(*) from messages where channel_id =
 const grpMsg = await as("u_e1", `insert into messages(channel_id, sender_id, body) select '${grp}', id, 'group hi' from employees where email = 'e1@x.com' returning id`);
 assert.equal(await as("u_admin", `select body from messages where id = '${grpMsg}'`), "group hi", "admin reads group chats");
 assert.equal(await err("u_admin", `insert into messages(channel_id, sender_id, body) select '${grp}', id, 'x' from employees where email = 'a@x.com'`), "ok", "admin posts in any group");
+// HR manages group membership but can't read messages
+const mgrId = (await db.query("select id from employees where email = 'm@x.com'")).rows[0].id;
+assert.equal(await as("u_hr", `select count(*) from channels where id = '${grp}'`), "1", "hr sees group");
+assert.equal(await as("u_hr", `select count(*) from messages where channel_id = '${grp}'`), "0", "hr can't read group messages");
+assert.equal(await err("u_hr", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${mgrId}')`), "ok", "hr adds member");
+assert.match(await err("u_hr", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${adminId}')`), /row-level security/, "not admins");
+assert.match(await err("u_e2", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${mgrId}')`), /row-level security|duplicate/, "plain employees can't");
 console.log("chat + employee code + admin chat checks passed");

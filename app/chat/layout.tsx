@@ -1,52 +1,24 @@
 import Link from "next/link";
-import { Building2, Globe, Hash, History, Megaphone, SquarePen, Users } from "lucide-react";
+import { History, SquarePen } from "lucide-react";
 import { db } from "@/lib/supabase";
 import { dmName } from "@/lib/util";
 import { pageMe } from "@/lib/me";
 import { adminNav, employeeNav } from "@/lib/nav";
 import { Shell } from "@/components/shell";
-import { Avatar } from "@/components/avatar";
-import { ChannelLink, ChatSidebar } from "@/components/live-refresh";
-
-type Row = {
-  id: string; type: "dm" | "group" | "department" | "office" | "global"; name: string | null; unread: number; announcements: boolean; avatar_url: string | null;
-  office_id: string | null; office_name: string | null;
-};
-
-function Group({ title, rows }: { title: string; rows: Row[] }) {
-  if (!rows.length) return null;
-  return (
-    <div className="mb-5">
-      <div className="mb-1.5 px-2.5 text-xs font-medium text-muted">{title}</div>
-      {rows.map((c) => (
-        <ChannelLink key={c.id} id={c.id}>
-          {c.announcements ? (
-            <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-fg"><Megaphone className="size-4" /></span>
-          ) : c.type === "dm" ? (
-            <Avatar name={c.name ?? "?"} src={c.avatar_url} size="size-7 text-[11px]" />
-          ) : (
-            <span className="grid size-7 place-items-center rounded-lg bg-surface-2 text-muted">
-              {c.type === "department" ? <Users className="size-4" /> : c.type === "office" ? <Building2 className="size-4" /> : c.type === "global" ? <Globe className="size-4" /> : <Hash className="size-4" />}
-            </span>
-          )}
-          <span className={`flex-1 truncate ${c.unread ? "font-semibold" : ""}`}>{c.name ?? "Unnamed"}</span>
-          {c.unread > 0 && <span className="min-w-5 rounded-full bg-primary px-1.5 text-center text-[11px] leading-5 font-semibold text-primary-fg tabular-nums">{c.unread}</span>}
-        </ChannelLink>
-      ))}
-    </div>
-  );
-}
+import { ChatSidebar } from "@/components/live-refresh";
+import { ChatList, type Row } from "@/components/chat-list";
 
 // Outside the (employee) group so admins get it too, inside their own panel's shell.
 export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
   const me = await pageMe();
   const admin = me.role === "admin";
+  const hr = me.role === "hr"; // sees group chats (not messages) to manage members, RLS: hr_read
   const sb = db();
   // one parallel round trip; admins also load every other group / department / office channel and every DM (read-only)
   const [nav, { data }, { data: allGroups }, { data: allDms }] = await Promise.all([
     admin ? adminNav(me) : employeeNav(me),
     sb.rpc("my_channels"),
-    admin ? sb.from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name") : { data: [] },
+    admin || hr ? sb.from("channels").select("id, type, name, office:offices(name), department:departments(office:offices(name))").neq("type", "dm").neq("type", "global").eq("announcements", false).order("name") : { data: [] },
     admin ? sb.from("channels").select("id, members:channel_members(employee:employees(full_name))").eq("type", "dm") : { data: [] },
   ]);
   const rows = (data ?? []) as Row[];
@@ -62,7 +34,6 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
     .sort((a, b) => a.name!.localeCompare(b.name!));
   // office channel first, then its departments
   const officeRows = rows.filter((r) => r.type === "office" || r.type === "department").sort((a, b) => Number(b.type === "office") - Number(a.type === "office"));
-  const offices = [...new Map(officeRows.map((r) => [r.office_id, r.office_name])).entries()];
 
   return (
     <Shell {...nav} user={{ id: me.id, name: me.full_name, role: me.role, avatar: me.avatar_url }}>
@@ -76,12 +47,15 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          <Group title="Company" rows={rows.filter((r) => r.announcements || r.type === "global")} />
-          {offices.map(([id, name]) => <Group key={id} title={name ?? "Office"} rows={officeRows.filter((r) => r.office_id === id)} />)}
-          <Group title="Groups" rows={rows.filter((r) => r.type === "group" && !r.announcements)} />
-          <Group title="Direct messages" rows={rows.filter((r) => r.type === "dm")} />
-          <Group title="All group chats (view only)" rows={others.map((r) => ({ ...r, name: r.office_name && r.type === "department" ? `${r.office_name} / ${r.name}` : r.name }))} />
-          <Group title="All direct messages (view only)" rows={dms} />
+          <ChatList meId={me.id} sections={[
+            { title: "Company", rows: rows.filter((r) => r.announcements || r.type === "global") },
+            { title: "Offices", rows: officeRows, nest: true },
+            { title: "Groups", rows: rows.filter((r) => r.type === "group" && !r.announcements) },
+            { title: "Direct messages", rows: rows.filter((r) => r.type === "dm") },
+            { title: hr ? "All group chats (manage members)" : "All group chats", rows: others.filter((r) => r.type !== "group"), nest: true },
+            { title: "Other group chats", rows: others.filter((r) => r.type === "group") },
+            { title: "All direct messages", rows: dms },
+          ]} />
           {!rows.length && <p className="px-3 py-6 text-sm text-muted">No conversations yet. Start one from the pencil above.</p>}
         </div>
       </ChatSidebar>

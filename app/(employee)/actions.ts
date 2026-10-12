@@ -91,6 +91,17 @@ export async function createGroup(fd: FormData) {
   redirect(`/chat/${ch.id}`);
 }
 
+// Admins and HR add people to an existing group chat (RLS enforces who may).
+export async function addMembers(fd: FormData) {
+  await requireMe();
+  const channel_id = str(fd, "channel_id");
+  const ids = fd.getAll("members").map(String);
+  if (!channel_id || !ids.length) return "Pick at least one person";
+  const { error } = await db().from("channel_members").insert(ids.map((employee_id) => ({ channel_id, employee_id })));
+  if (error) return error.message;
+  revalidatePath(`/chat/${channel_id}`);
+}
+
 export async function sendMessage(fd: FormData) {
   const me = await requireMe();
   const channel_id = str(fd, "channel_id");

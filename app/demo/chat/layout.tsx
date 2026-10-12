@@ -70,8 +70,8 @@ function Inner({ children, admin }: { children: React.ReactNode; admin: boolean 
           {offices.map((o) => <Group key={o.id} title={o.name} rows={officeRows.filter((r) => r.office_id === o.id).map(row)} />)}
           <Group title="Groups" rows={mine.filter((r) => r.type === "group").map(row)} />
           <Group title="Direct messages" rows={mine.filter((r) => r.type === "dm").map(row)} />
-          <Group title="All group chats (view only)" rows={others.filter((r) => r.type !== "dm" && !r.announcements && r.type !== "global").map((c) => ({ c, name: c.type === "department" ? `${OFFICES.find((o) => o.id === c.office_id)?.name} / ${c.name}` : c.name ?? "Unnamed" }))} />
-          <Group title="All direct messages (view only)" rows={others.filter((r) => r.type === "dm").map((c) => ({ c, name: dmName(c, "") }))} />
+          <Group title="All group chats" rows={others.filter((r) => r.type !== "dm" && !r.announcements && r.type !== "global").map((c) => ({ c, name: c.type === "department" ? `${OFFICES.find((o) => o.id === c.office_id)?.name} / ${c.name}` : c.name ?? "Unnamed" }))} />
+          <Group title="All direct messages" rows={others.filter((r) => r.type === "dm").map((c) => ({ c, name: dmName(c, "") }))} />
           {!mine.length && <p className="px-3 py-6 text-sm text-muted">No conversations yet. Start one from the pencil above.</p>}
         </div>
       </aside>
