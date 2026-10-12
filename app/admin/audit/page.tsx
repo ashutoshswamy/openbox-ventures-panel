@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { adminPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { PageHeader } from "@/components/shell";
@@ -17,20 +18,20 @@ const at = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "A
 
 type Row = { id: number; at: string; actor_id: string | null; employee_id: string | null; action: keyof typeof TONE; table_name: string; reason: string | null; old: Record<string, unknown> | null; new: Record<string, unknown> | null };
 
-// Written by the audit() trigger (supabase/migrations/…_payslips_and_audit.sql). Newest first, keyset paging on id.
+// Written by the audit() trigger (supabase/migrations/…_payslips_and_audit.sql). Newest first, 100 per page.
 export default async function Audit({ searchParams }: PageProps<"/admin/audit">) {
   await adminPage();
   const sp = await searchParams;
   const table = sp.table && String(sp.table) in TABLES ? String(sp.table) : null;
   const employee = /^[0-9a-f-]{36}$/.test(String(sp.employee ?? "")) ? String(sp.employee) : null;
-  const before = Number(sp.before) || null;
+  const page = Math.max(1, Math.floor(Number(sp.page)) || 1);
   const sb = db();
 
-  let q = sb.from("audit_log").select("*").order("id", { ascending: false }).limit(PAGE);
+  let q = sb.from("audit_log").select("*", { count: "exact" }).order("id", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
   if (table) q = q.eq("table_name", table);
   if (employee) q = q.or(`employee_id.eq.${employee},actor_id.eq.${employee}`);
-  if (before) q = q.lt("id", before);
-  const { data } = await q;
+  const { data, count } = await q;
+  const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE));
   const rows = (data ?? []) as Row[];
   const ids = [...new Set(rows.flatMap((r) => [r.actor_id, r.employee_id]).filter(Boolean))] as string[];
   const { data: people } = ids.length ? await sb.from("employees").select("id, full_name").in("id", ids) : { data: [] };
@@ -60,9 +61,9 @@ export default async function Audit({ searchParams }: PageProps<"/admin/audit">)
                 {rows.map((r) => (
                   <tr key={r.id} className="align-top">
                     <td className="whitespace-nowrap text-muted tabular-nums">{at(r.at)}</td>
-                    <td className="whitespace-nowrap">{r.actor_id ? <Link href={link({ employee: r.actor_id, before: null })} className="hover:underline">{name(r.actor_id)}</Link> : <span className="text-muted">System</span>}</td>
+                    <td className="whitespace-nowrap">{r.actor_id ? <Link href={link({ employee: r.actor_id, page: null })} className="hover:underline">{name(r.actor_id)}</Link> : <span className="text-muted">System</span>}</td>
                     <td className="whitespace-nowrap"><span className={`badge ${TONE[r.action]}`}>{r.action}</span> {TABLES[r.table_name] ?? r.table_name}</td>
-                    <td className="whitespace-nowrap">{r.employee_id ? <Link href={link({ employee: r.employee_id, before: null })} className="hover:underline">{name(r.employee_id)}</Link> : "-"}</td>
+                    <td className="whitespace-nowrap">{r.employee_id ? <Link href={link({ employee: r.employee_id, page: null })} className="hover:underline">{name(r.employee_id)}</Link> : "-"}</td>
                     <td className="min-w-64 text-xs">
                       {r.reason && <p className="mb-1"><span className="text-muted">Reason:</span> {r.reason}</p>}
                       {r.action === "update" ? (
@@ -81,7 +82,13 @@ export default async function Audit({ searchParams }: PageProps<"/admin/audit">)
             </table>
           )}
         </section>
-        {rows.length === PAGE && <Link href={link({ before: rows[rows.length - 1].id })} className="btn">Older</Link>}
+        {pages > 1 && (
+          <nav className="flex items-center justify-between gap-3 text-sm" aria-label="Pages">
+            {page > 1 ? <Link href={link({ page: page - 1 })} className="btn"><ChevronLeft /> Newer</Link> : <span />}
+            <span className="text-muted">Page {page} of {pages} · {count} entries</span>
+            {page < pages ? <Link href={link({ page: page + 1 })} className="btn">Older <ChevronRight /></Link> : <span />}
+          </nav>
+        )}
       </div>
     </>
   );
