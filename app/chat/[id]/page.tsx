@@ -1,18 +1,21 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
+import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, KeyRound, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
 import { pageMe } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
+import { MemberList } from "@/components/member-list";
 import { AddMembers } from "@/components/add-members";
 import { MentionInput } from "@/components/mention-input";
 import { Attachment } from "@/components/attachment";
-import { Avatar } from "@/components/avatar";
+import { Avatar, tintFor } from "@/components/avatar";
 import { CallButton, CallCard, Ended } from "@/components/call-button";
 import { endCall, markRead, sendMessage } from "@/app/(employee)/actions";
+import { unlockDms } from "@/app/chat/actions";
+import { dms } from "@/lib/dm-unlock";
 
 export const metadata = { title: "Chat" };
 
@@ -40,7 +43,7 @@ function Body({ text, mine, channelId, liveCall, myName, sentAt, tags }: { text:
     <p className="break-words whitespace-pre-wrap">
       {text.split(/(https?:\/\/\S+)/g).map((part, i) =>
         i % 2 ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">{part}</a>
-          : tags ? part.split(tags).map((t, j) => j % 2 ? <span key={j} className={`rounded px-1 font-medium ${t === `@${myName}` ? "bg-amber-300/40" : mine ? "bg-primary-fg/20" : "bg-primary-soft text-primary"}`}>{t}</span> : t) : part,
+          : tags ? part.split(tags).map((t, j) => j % 2 ? <span key={j} className={`rounded px-1 font-medium ${tintFor(t.slice(1))} ${t === `@${myName}` ? "ring-1 ring-amber-400" : ""}`}>{t}</span> : t) : part,
       )}
     </p>
   );
@@ -84,6 +87,19 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   if (viewOnly && meta) channel = { ...meta, name: meta.type === "dm" ? dmName(meta.members as never) : meta.name, avatar_url: null };
   if (!channel || !meta) notFound();
   const hrOnly = viewOnly && me.role === "hr";
+  // someone else's DM: admin re-enters their password first
+  if (viewOnly && channel.type === "dm" && !(await dms.unlocked(me.id)))
+    return (
+      <div className="m-auto w-full max-w-sm space-y-4 p-6">
+        <Link href="/chat" className="btn btn-ghost -ml-2 md:hidden"><ArrowLeft /> Conversations</Link>
+        <h2 className="h2"><Lock /> {channel.name}</h2>
+        <p className="text-sm text-muted">This is a private conversation between other people. Enter your account password to read it.</p>
+        <ActionForm action={unlockDms} className="flex gap-2">
+          <input type="password" name="password" required autoComplete="current-password" aria-label="Account password" className="input h-10 flex-1" />
+          <button className="btn btn-primary h-10"><KeyRound /> View</button>
+        </ActionForm>
+      </div>
+    );
   // tagging: only people in this chat. Group/DM = its members; department/office = everyone in it; company channels = everyone.
   const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string } | null }[]).filter((m) => m.employee);
   let people = members.map((m) => m.employee!.full_name);
@@ -93,7 +109,8 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
     people = ((await q).data ?? []).map((p) => p.full_name);
   }
-  people = [...new Set(people)].filter((n) => n !== me.full_name).sort();
+  const roster = [...new Set(people)].sort(); // everyone in the chat, me included
+  people = roster.filter((n) => n !== me.full_name); // taggable
   const mention = [...people, me.full_name].sort((a, b) => b.length - a.length); // longest first so "Ann Lee" wins over "Ann"
   const tags = new RegExp(`(@(?:${mention.map(esc).join("|")}))`, "g");
   // admins and HR can add people to a group chat
@@ -133,6 +150,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
+        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} me={me.full_name} />}
         {canAdd && <AddMembers channelId={id} people={addable} />}
         {!viewOnly && !channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
       </header>
