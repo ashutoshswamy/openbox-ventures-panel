@@ -6,14 +6,13 @@ import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigatio
 import { Phone, PhoneOff } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
-import { CALL_ENDED } from "@/lib/util";
+import { CALL_AUDIO, CALL_ENDED, CALL_VIDEO } from "@/lib/util";
 
 // Re-renders server components when any published table changes in a row the user can read (RLS-filtered),
 // and when the tab comes back into view (catches events missed while asleep/offline).
 // ponytail: full refresh per change (debounced), fine for a company-sized team; append-in-place if chat gets busy.
 type Msg = { id: string; channel_id: string; sender_id: string | null; body: string | null };
-type Ringing = { channel: string; from: string };
-const CALL = "Started a video call:"; // startCall() message prefix
+type Ringing = { channel: string; from: string; audio: boolean };
 const RING_MS = 30_000;
 
 // Ringtone without an audio file: two-tone burst every 2s. Browsers only allow sound after the user has
@@ -109,7 +108,8 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
       }
       if (!m.sender_id || m.sender_id === meId) return; // system posts (announcements) don't ping
       const href = `/chat/${m.channel_id}`;
-      const call = m.body?.startsWith(CALL);
+      const audio = !!m.body?.startsWith(CALL_AUDIO);
+      const call = audio || !!m.body?.startsWith(CALL_VIDEO); // startCall() message prefixes
       const tagged = !!m.body && m.body.includes(`@${meName}`);
       if (!call && path.current === href && document.visibilityState === "visible") return;
       if (!call) ding(tagged);
@@ -118,12 +118,12 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
       if (call) {
         stopRing.current();
         stopRing.current = ring();
-        setRinging({ channel: m.channel_id, from });
+        setRinging({ channel: m.channel_id, from, audio });
         setTimeout(() => { stopRing.current(); setRinging((r) => (r?.channel === m.channel_id ? null : r)); }, RING_MS);
       }
       if ("Notification" in window && Notification.permission === "granted" && (call || document.visibilityState !== "visible" || !path.current.startsWith("/chat"))) {
         const n = new Notification(call ? `${from} is calling` : tagged ? `${from} mentioned you` : from, {
-          body: call ? "Video call. Open the chat to join." : m.body?.slice(0, 140) || "Sent an attachment",
+          body: call ? `${audio ? "Audio" : "Video"} call. Open the chat to join.` : m.body?.slice(0, 140) || "Sent an attachment",
           tag: call ? `call:${m.channel_id}` : m.id,
           icon: "/apple-touch-icon.png",
         });
@@ -150,7 +150,7 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
       <span className="grid size-9 animate-pulse place-items-center rounded-full bg-primary text-primary-fg"><Phone className="size-4" /></span>
       <div className="mr-2 leading-tight">
         <div className="text-sm font-semibold">{ringing.from}</div>
-        <div className="text-xs text-muted">Incoming video call</div>
+        <div className="text-xs text-muted">Incoming {ringing.audio ? "audio" : "video"} call</div>
       </div>
       <Link href={`/chat/${ringing.channel}`} onClick={dismiss} className="btn btn-primary"><Phone /> Answer</Link>
       <button type="button" onClick={dismiss} className="btn btn-icon" aria-label="Dismiss call" title="Dismiss"><PhoneOff /></button>

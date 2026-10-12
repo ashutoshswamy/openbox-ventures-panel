@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMe } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
-import { CALL_ENDED, meetUrl, roomOf, str } from "@/lib/util";
+import { CALL_AUDIO, CALL_ENDED, CALL_VIDEO, meetUrl, roomOf, str } from "@/lib/util";
 
 function done() {
   revalidatePath("/", "layout");
@@ -140,13 +140,13 @@ async function sweepOrphans(ownerId: string) {
   }
 }
 
-export async function startCall(channelId: string, room: string) {
+export async function startCall(channelId: string, room: string, audio: boolean) {
   const me = await requireMe();
   if (!/^[a-f0-9]{12}$/.test(room)) throw new Error("Invalid room");
   const sb = db();
   const { error } = await sb.rpc("start_call", { ch: channelId, p_room: room });
   if (error) throw new Error(error.message);
-  await sb.from("messages").insert({ channel_id: channelId, sender_id: me.id, body: `Started a video call: ${meetUrl(channelId, room)}` });
+  await sb.from("messages").insert({ channel_id: channelId, sender_id: me.id, body: (audio ? CALL_AUDIO : CALL_VIDEO) + meetUrl(channelId, room) });
   revalidatePath(`/chat/${channelId}`);
 }
 

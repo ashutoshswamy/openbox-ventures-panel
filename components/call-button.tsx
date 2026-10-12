@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
-import { Video } from "lucide-react";
+import { Phone, Video } from "lucide-react";
 import { startCall } from "@/app/(employee)/actions";
 import { meetUrl, roomOf } from "@/lib/util";
 
@@ -17,8 +17,9 @@ const client = (getToken: GetToken) =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { accessToken: getToken });
 const topic = (url: string) => `call:${url.split("/").pop()}`;
 
-function joinCall(url: string, name: string, getToken: GetToken) {
-  const w = window.open(url, "_blank");
+function joinCall(url: string, name: string, getToken: GetToken, audio: boolean) {
+  // audio-only is a Jitsi hash config, added here only so the posted url (room id, presence topic) stays hash-free
+  const w = window.open(audio ? `${url}#config.startWithVideoMuted=true&config.startAudioOnly=true` : url, "_blank");
   if (!w) return;
   try { w.opener = null; } catch {} // still about:blank here; Jitsi can't touch the panel tab
   const sb = client(getToken);
@@ -40,23 +41,25 @@ function joinCall(url: string, name: string, getToken: GetToken) {
 // Fresh room per call, so an ended call's link leads nowhere.
 export function CallButton({ channelId, name }: { channelId: string; name: string }) {
   const { getToken } = useAuth();
+  const start = (audio: boolean) => {
+    const room = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
+    joinCall(meetUrl(channelId, room), name, getToken, audio);
+    startCall(channelId, room, audio);
+  };
   return (
-    <button
-      type="button"
-      className="btn"
-      onClick={() => {
-        const room = crypto.randomUUID().replaceAll("-", "").slice(0, 12);
-        joinCall(meetUrl(channelId, room), name, getToken);
-        startCall(channelId, room);
-      }}
-    >
-      <Video /> <span className="hidden sm:inline">Video call</span>
-    </button>
+    <>
+      <button type="button" className="btn" onClick={() => start(true)}>
+        <Phone /> <span className="hidden sm:inline">Audio call</span>
+      </button>
+      <button type="button" className="btn" onClick={() => start(false)}>
+        <Video /> <span className="hidden sm:inline">Video call</span>
+      </button>
+    </>
   );
 }
 
 // Newest call in a channel: joinable while anyone's in it, ended after a minute with nobody.
-export function CallCard({ url, name, startedAt, icon, endForm }: { url: string; name: string; startedAt: string; icon: React.ReactNode; endForm: React.ReactNode }) {
+export function CallCard({ url, name, audio, startedAt, icon, endForm }: { url: string; name: string; audio: boolean; startedAt: string; icon: React.ReactNode; endForm: React.ReactNode }) {
   const { getToken } = useAuth();
   const [people, setPeople] = useState<string[] | null>(null); // null = not synced yet
   const [deadline, setDeadline] = useState(() => Date.parse(startedAt) + EMPTY_GRACE_MS);
@@ -83,13 +86,13 @@ export function CallCard({ url, name, startedAt, icon, endForm }: { url: string;
   }, [empty, deadline]);
 
   // eslint-disable-next-line react-hooks/purity -- re-rendered by the timer above at the deadline
-  if (empty && Date.now() > deadline) return <Ended icon={icon} />;
+  if (empty && Date.now() > deadline) return <Ended icon={icon} audio={audio} />;
   return (
     <div className="flex items-center gap-3 py-1">
-      <button type="button" onClick={() => joinCall(url, name, getToken)} className="flex items-center gap-3 text-left font-medium">
+      <button type="button" onClick={() => joinCall(url, name, getToken, audio)} className="flex items-center gap-3 text-left font-medium">
         {icon}
         <span>
-          Video call{people?.length ? " in progress" : " started"}
+          {audio ? "Audio" : "Video"} call{people?.length ? " in progress" : " started"}
           <span className="block text-xs font-normal opacity-70">
             {people === null ? "Tap to join" : people.length ? `${people.join(", ")} · tap to join` : "Nobody's in yet · tap to join"}
           </span>
@@ -100,11 +103,11 @@ export function CallCard({ url, name, startedAt, icon, endForm }: { url: string;
   );
 }
 
-export function Ended({ icon }: { icon: React.ReactNode }) {
+export function Ended({ icon, audio }: { icon: React.ReactNode; audio: boolean }) {
   return (
     <p className="flex items-center gap-3 py-1 font-medium opacity-80">
       {icon}
-      <span>Video call ended<span className="block text-xs font-normal opacity-70">This call is over</span></span>
+      <span>{audio ? "Audio" : "Video"} call ended<span className="block text-xs font-normal opacity-70">This call is over</span></span>
     </p>
   );
 }

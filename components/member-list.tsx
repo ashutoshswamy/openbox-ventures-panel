@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { Users, X } from "lucide-react";
 import { Avatar } from "@/components/avatar";
+import { AddMembers } from "@/components/add-members";
 
 // Header button + a panel that slides in from the right edge of the chat (the chat section is `relative overflow-hidden`).
-export function MemberList({ names, me }: { names: string[]; me: string }) {
+export function MemberList({ names, me, channelId, addable }: { names: string[]; me: string; channelId?: string; addable?: { id: string; full_name: string }[] }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -26,7 +27,8 @@ export function MemberList({ names, me }: { names: string[]; me: string }) {
           <h3 className="text-xs font-semibold tracking-wide text-muted uppercase">Members · {names.length}</h3>
           <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost btn-icon" aria-label="Close members"><X /></button>
         </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        {channelId && addable && <AddMembers channelId={channelId} people={addable} />}
+        <ul className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           {names.map((n) => (
             <li key={n} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-2">
               <Avatar name={n} size="size-8 text-xs" />

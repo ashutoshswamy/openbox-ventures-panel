@@ -1,14 +1,13 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Building2, Eye, Globe, Hash, KeyRound, Lock, Megaphone, SendHorizontal, Users, Video } from "lucide-react";
+import { ArrowLeft, Bot, Building2, Check, CheckCheck, Eye, Globe, Hash, KeyRound, Lock, Megaphone, Phone, SendHorizontal, Users, Video } from "lucide-react";
 import { pageMe } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
-import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
+import { CALL_AUDIO, CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { MemberList } from "@/components/member-list";
-import { AddMembers } from "@/components/add-members";
 import { MentionInput } from "@/components/mention-input";
 import { Attachment } from "@/components/attachment";
 import { Avatar, tintFor } from "@/components/avatar";
@@ -25,12 +24,14 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function Body({ text, mine, channelId, liveCall, myName, sentAt, tags }: { text: string; mine: boolean; channelId: string; liveCall: string | null; myName: string; sentAt: string; tags: RegExp | null }) {
   const call = callUrl(text);
-  const icon = <span className={`grid size-8 shrink-0 place-items-center rounded-full ${mine ? "bg-primary-fg/15" : "bg-surface"}`}><Video className="size-4" /></span>;
+  const audio = text.startsWith(CALL_AUDIO);
+  const Icon = audio ? Phone : Video;
+  const icon = <span className={`grid size-8 shrink-0 place-items-center rounded-full ${mine ? "bg-primary-fg/15" : "bg-surface"}`}><Icon className="size-4" /></span>;
   if (call && text.startsWith(CALL_ENDED))
-    return <p className="flex items-center gap-3 py-1 font-medium">{icon} Ended the video call</p>;
+    return <p className="flex items-center gap-3 py-1 font-medium">{icon} Ended the call</p>;
   if (call && call === liveCall)
     return (
-      <CallCard url={call} name={myName} startedAt={sentAt} icon={icon} endForm={
+      <CallCard url={call} audio={audio} name={myName} startedAt={sentAt} icon={icon} endForm={
         <ActionForm action={endCall}>
           <input type="hidden" name="channel_id" value={channelId} />
           <input type="hidden" name="url" value={call} />
@@ -38,7 +39,7 @@ function Body({ text, mine, channelId, liveCall, myName, sentAt, tags }: { text:
         </ActionForm>
       } />
     );
-  if (call) return <Ended icon={icon} />;
+  if (call) return <Ended icon={icon} audio={audio} />;
   return (
     <p className="break-words whitespace-pre-wrap">
       {text.split(/(https?:\/\/\S+)/g).map((part, i) =>
@@ -68,6 +69,11 @@ function liveCallOf(messages: Msg[]) {
   return callUrl(latest.body) ?? null;
 }
 
+function Tick({ state }: { state: "sent" | "delivered" | "read" }) {
+  const cls = `ml-1 inline size-3.5 align-[-2px] ${state === "read" ? "text-sky-300" : "opacity-70"}`;
+  return state === "sent" ? <Check className={cls} aria-label="Sent" /> : <CheckCheck className={cls} aria-label={state === "read" ? "Read" : "Delivered"} />;
+}
+
 type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; sender: { full_name: string; avatar_url: string | null } | null };
 
 export default async function Channel({ params }: PageProps<"/chat/[id]">) {
@@ -77,7 +83,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const [{ data: channels }, { data }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
     sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
-    sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, employee:employees(full_name))").eq("id", id).maybeSingle(),
+    sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name))").eq("id", id).maybeSingle(),
   ]);
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
@@ -128,6 +134,10 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   }
   if (!viewOnly) await markRead(id);
   const messages = (data ?? []) as unknown as Msg[];
+  // ticks: no other member rows = sent; rows exist = delivered; every other member read past it = read (channel_members is not realtime, so this updates on refresh)
+  const others = (meta.members as unknown as { employee_id: string; last_read_at: string | null }[]).filter((m) => m.employee_id !== me.id);
+  const ticks = !viewOnly && !channel.announcements;
+  const stateOf = (at: string) => (!others.length ? "sent" : others.every((o) => o.last_read_at && o.last_read_at >= at) ? "read" : "delivered");
   // RLS hides admin rows from everyone else; look up just their name + photo so admin messages show who sent them (never email/phone)
   const hidden = [...new Set(messages.filter((m) => m.sender_id && !m.sender).map((m) => m.sender_id!))];
   if (hidden.length) {
@@ -155,8 +165,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
-        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} me={me.full_name} />}
-        {canAdd && <AddMembers channelId={id} people={addable} />}
+        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
         {!viewOnly && !channel.announcements && channel.type !== "global" && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
@@ -198,7 +207,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                 <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-surface-2"}`}>
                   {m.body && <Body tags={tags} text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
-                  <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}</div>
+                  <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
                 </div>
               </div>
             </li>

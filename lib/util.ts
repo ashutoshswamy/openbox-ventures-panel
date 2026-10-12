@@ -49,7 +49,9 @@ export const roomOf = (url: string) => url.slice(-12);
 export const dmName = (members: { employee: { full_name: string } | null }[]) =>
   members.map((m) => m.employee?.full_name ?? "Former employee").sort().join(" & ");
 
-export const CALL_ENDED = "Ended the video call: ";
+export const CALL_ENDED = "Ended the video call: "; // used for audio calls too
+export const CALL_VIDEO = "Started a video call: ";
+export const CALL_AUDIO = "Started an audio call: ";
 
 export function greeting(tz = DEFAULT_TZ) {
   const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hourCycle: "h23" }).format(new Date()));
