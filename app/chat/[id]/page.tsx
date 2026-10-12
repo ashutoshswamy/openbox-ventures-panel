@@ -7,6 +7,7 @@ import { adminDb, db } from "@/lib/supabase";
 import { CALL_ENDED, DEFAULT_TZ, dmName, fmtDate, fmtTime, splitPost, todayIn } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
+import { MentionInput } from "@/components/mention-input";
 import { Attachment } from "@/components/attachment";
 import { Avatar } from "@/components/avatar";
 import { CallButton, CallCard, Ended } from "@/components/call-button";
@@ -16,7 +17,9 @@ export const metadata = { title: "Chat" };
 
 const callUrl = (text: string) => text.match(/https:\/\/meet\.jit\.si\/\S+/)?.[0];
 
-function Body({ text, mine, channelId, liveCall, myName, sentAt }: { text: string; mine: boolean; channelId: string; liveCall: string | null; myName: string; sentAt: string }) {
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function Body({ text, mine, channelId, liveCall, myName, sentAt, tags }: { text: string; mine: boolean; channelId: string; liveCall: string | null; myName: string; sentAt: string; tags: RegExp | null }) {
   const call = callUrl(text);
   const icon = <span className={`grid size-8 shrink-0 place-items-center rounded-full ${mine ? "bg-primary-fg/15" : "bg-surface"}`}><Video className="size-4" /></span>;
   if (call && text.startsWith(CALL_ENDED))
@@ -35,7 +38,8 @@ function Body({ text, mine, channelId, liveCall, myName, sentAt }: { text: strin
   return (
     <p className="break-words whitespace-pre-wrap">
       {text.split(/(https?:\/\/\S+)/g).map((part, i) =>
-        i % 2 ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">{part}</a> : part,
+        i % 2 ? <a key={i} href={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">{part}</a>
+          : tags ? part.split(tags).map((t, j) => j % 2 ? <span key={j} className={`rounded px-1 font-medium ${t === `@${myName}` ? "bg-amber-300/40" : mine ? "bg-primary-fg/20" : "bg-primary-soft text-primary"}`}>{t}</span> : t) : part,
       )}
     </p>
   );
@@ -66,10 +70,14 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
   const me = await pageMe();
   const sb = db();
-  const [{ data: channels }, { data }] = await Promise.all([
+  const [{ data: channels }, { data }, { data: staff }] = await Promise.all([
     sb.rpc("my_channels"),
     sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
+    sb.from("employees").select("full_name").eq("active", true).not("clerk_user_id", "is", null).order("full_name"),
   ]);
+  const people = (staff ?? []).map((p) => p.full_name);
+  const mention = [...people, me.full_name].sort((a, b) => b.length - a.length); // longest first so "Ann Lee" wins over "Ann"
+  const tags = new RegExp(`(@(?:${[...new Set(mention)].map(esc).join("|")}))`, "g");
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
   // admins read any channel they're not in, DMs between employees included (RLS: admin_read), without joining it
@@ -147,7 +155,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
               <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
                 {!mine && (first || newDay) && <span className="mb-1 ml-1 text-xs font-medium text-muted">{who}</span>}
                 <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-surface-2"}`}>
-                  {m.body && <Body text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
+                  {m.body && <Body tags={tags} text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
                   <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}</div>
                 </div>
@@ -175,7 +183,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         <input type="hidden" name="channel_id" value={id} />
         <div className="flex w-full items-center gap-1 rounded-xl border border-line bg-surface p-1 pl-1.5 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10">
           <AttachInput name="attachment" />
-          <input name="body" autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
+          <MentionInput name="body" people={people.filter((n) => n !== me.full_name)} autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
           <button className="btn btn-primary btn-icon" title="Send" aria-label="Send"><SendHorizontal /></button>
         </div>
         {/* disclosure: admins can read every chat (RLS: admin_read) */}

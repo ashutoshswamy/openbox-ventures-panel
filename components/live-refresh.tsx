@@ -38,8 +38,24 @@ function ring() {
   return () => clearInterval(id);
 }
 
-// meId: messages I sent don't alert me.
-export function LiveRefresh({ meId }: { meId: string }) {
+// Short two-note chime: higher + brighter for a tag (@me), softer for a plain message.
+function ding(tag: boolean) {
+  if (!audio) return;
+  const ctx = audio;
+  for (const [f, t] of tag ? [[988, 0], [1319, 0.12]] : [[698, 0], [880, 0.1]]) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), at = ctx.currentTime + t;
+    o.type = "sine";
+    o.frequency.value = f;
+    g.gain.setValueAtTime(tag ? 0.2 : 0.12, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + 0.25);
+    o.connect(g).connect(ctx.destination);
+    o.start(at);
+    o.stop(at + 0.26);
+  }
+}
+
+// meId: messages I sent don't alert me. meName: a "@meName" in a message gets the louder tag chime.
+export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) {
   const { isSignedIn, getToken } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -94,7 +110,9 @@ export function LiveRefresh({ meId }: { meId: string }) {
       if (!m.sender_id || m.sender_id === meId) return; // system posts (announcements) don't ping
       const href = `/chat/${m.channel_id}`;
       const call = m.body?.startsWith(CALL);
+      const tagged = !!m.body && m.body.includes(`@${meName}`);
       if (!call && path.current === href && document.visibilityState === "visible") return;
+      if (!call) ding(tagged);
       const { data } = await sb.from("employees").select("full_name").eq("id", m.sender_id).maybeSingle();
       const from = data?.full_name ?? "Someone";
       if (call) {
@@ -104,7 +122,7 @@ export function LiveRefresh({ meId }: { meId: string }) {
         setTimeout(() => { stopRing.current(); setRinging((r) => (r?.channel === m.channel_id ? null : r)); }, RING_MS);
       }
       if ("Notification" in window && Notification.permission === "granted" && (call || document.visibilityState !== "visible" || !path.current.startsWith("/chat"))) {
-        const n = new Notification(call ? `${from} is calling` : from, {
+        const n = new Notification(call ? `${from} is calling` : tagged ? `${from} mentioned you` : from, {
           body: call ? "Video call. Open the chat to join." : m.body?.slice(0, 140) || "Sent an attachment",
           tag: call ? `call:${m.channel_id}` : m.id,
           icon: "/apple-touch-icon.png",
@@ -124,7 +142,7 @@ export function LiveRefresh({ meId }: { meId: string }) {
       sb.removeChannel(ch);
       stopRing.current();
     };
-  }, [isSignedIn, getToken, router, meId]);
+  }, [isSignedIn, getToken, router, meId, meName]);
 
   if (!ringing) return null;
   return (
