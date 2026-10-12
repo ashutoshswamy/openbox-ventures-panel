@@ -9,6 +9,7 @@ import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { MemberList } from "@/components/member-list";
 import { MentionInput } from "@/components/mention-input";
+import { ReplyButton, ReplyField, ReplyProvider } from "@/components/reply";
 import { Attachment } from "@/components/attachment";
 import { Avatar, tintFor } from "@/components/avatar";
 import { CallButton, CallCard, Ended } from "@/components/call-button";
@@ -50,6 +51,9 @@ function Body({ text, mine, channelId, liveCall, myName, sentAt, tags }: { text:
   );
 }
 
+// One-line text for a quoted / replied-to message.
+const snippet = (m: Msg) => (m.body ? (callUrl(m.body) ? "Video call" : m.body.slice(0, 120)) : "Attachment");
+
 const dayOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: DEFAULT_TZ }).format(new Date(iso));
 
 function Day({ day }: { day: string }) {
@@ -74,7 +78,7 @@ function Tick({ state }: { state: "sent" | "delivered" | "read" }) {
   return state === "sent" ? <Check className={cls} aria-label="Sent" /> : <CheckCheck className={cls} aria-label={state === "read" ? "Read" : "Delivered"} />;
 }
 
-type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; sender: { full_name: string; avatar_url: string | null } | null };
+type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; reply_to: string | null; sender: { full_name: string; avatar_url: string | null } | null };
 
 export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
@@ -82,7 +86,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const sb = db();
   const [{ data: channels }, { data }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
-    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
+    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
     sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name))").eq("id", id).maybeSingle(),
   ]);
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
@@ -145,11 +149,12 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     const by = new Map((rows ?? []).map((r) => [r.id, r]));
     for (const m of messages) if (m.sender_id && !m.sender) m.sender = by.get(m.sender_id) ?? null;
   }
+  const byId = new Map(messages.map((m) => [m.id, m]));
   const name = channel.name ?? "Unnamed";
   const liveCall = viewOnly ? null : liveCallOf(messages);
 
   return (
-    <>
+    <ReplyProvider>
       <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line px-4">
         <Link href="/chat" className="btn btn-ghost btn-icon md:hidden" title="Back" aria-label="Back to conversations"><ArrowLeft /></Link>
         {channel.announcements ? (
@@ -198,18 +203,27 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           const who = m.sender?.full_name ?? "Former employee";
           const day = dayOf(m.created_at);
           const newDay = !older || dayOf(older.created_at) !== day;
+          const quoted = m.reply_to ? byId.get(m.reply_to) : undefined;
+          const quotedWho = quoted ? (quoted.sender_id === me.id ? "You" : quoted.sender?.full_name ?? "Former employee") : "";
           return (
             <Fragment key={m.id}>
-            <li className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""} ${first || newDay ? "mt-3" : ""} ${i === 0 ? "rise" : ""}`}>
+            <li id={`m-${m.id}`} className={`group flex scroll-mt-4 items-end gap-2 ${mine ? "flex-row-reverse" : ""} ${first || newDay ? "mt-3" : ""} ${i === 0 ? "rise" : ""}`}>
               {!mine && (first || newDay ? <Avatar name={who} src={m.sender?.avatar_url} size="size-7 text-[11px]" /> : <span className="w-7 shrink-0" />)}
               <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
                 {!mine && (first || newDay) && <span className="mb-1 ml-1 text-xs font-medium text-muted">{who}</span>}
                 <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-surface-2"}`}>
+                  {m.reply_to && (
+                    <a href={quoted ? `#m-${quoted.id}` : undefined} className={`mb-1.5 block rounded-lg border-l-4 px-2.5 py-1 text-xs leading-tight ${mine ? "border-primary-fg/60 bg-primary-fg/15" : "border-primary bg-surface"}`}>
+                      <span className="block font-semibold">{quoted ? quotedWho : "Message"}</span>
+                      <span className="line-clamp-2 opacity-80">{quoted ? snippet(quoted) : "Original message unavailable"}</span>
+                    </a>
+                  )}
                   {m.body && <Body tags={tags} text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
                   <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
                 </div>
               </div>
+              <ReplyButton id={m.id} who={mine ? "You" : who} text={snippet(m)} />
             </li>
             {newDay && <Day day={day} />}
             </Fragment>
@@ -232,6 +246,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
       ) : (
       <ActionForm action={sendMessage} className="flex flex-wrap items-center gap-1 px-3 pb-3 md:px-6 md:pb-4">
         <input type="hidden" name="channel_id" value={id} />
+        <ReplyField />
         <div className="flex w-full items-center gap-1 rounded-xl border border-line bg-surface p-1 pl-1.5 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10">
           <AttachInput name="attachment" />
           <MentionInput name="body" people={people} autoComplete="off" aria-label={`Message ${name}`} placeholder={`Message ${name}`} className="h-9 min-w-0 flex-1 bg-transparent px-1 text-sm placeholder:text-muted focus:outline-none" />
@@ -241,6 +256,6 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         {me.role !== "admin" && <p className="flex w-full items-center gap-1.5 px-1 pt-1 text-xs text-muted"><Eye className="size-3.5" /> Admins can view this conversation.</p>}
       </ActionForm>
       )}
-    </>
+    </ReplyProvider>
   );
 }

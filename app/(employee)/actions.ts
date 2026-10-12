@@ -107,8 +107,9 @@ export async function sendMessage(fd: FormData) {
   const channel_id = str(fd, "channel_id");
   const body = str(fd, "body");
   const attachment_path = str(fd, "attachment"); // already uploaded by AttachInput; RLS only accepts your own paths
+  const reply_to = str(fd, "reply_to"); // RLS: must be a message in the same chat
   if (!body && !attachment_path) return null;
-  const { error } = await db().from("messages").insert({ channel_id, sender_id: me.id, body, attachment_path });
+  const { error } = await db().from("messages").insert({ channel_id, sender_id: me.id, body, attachment_path, reply_to });
   if (error) return error.message;
   revalidatePath(`/chat/${channel_id}`);
 }
