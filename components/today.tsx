@@ -7,11 +7,12 @@ import { Workday } from "./workday";
 // Today's attendance: live workday clock + check-in/out.
 export async function Today({ employeeId, officeId }: { employeeId: string; officeId: string | null }) {
   const sb = db();
-  const [{ data: date }, { data: office }] = await Promise.all([
-    sb.rpc("my_today"),
+  const [{ data: shift }, { data: office }] = await Promise.all([
+    sb.rpc("my_shift"),
     officeId ? sb.from("offices").select("name, timezone, work_start, work_end, grace_min").eq("id", officeId).maybeSingle() : { data: null },
   ]);
-  const { data: a } = await sb.from("attendance_report").select("*").eq("employee_id", employeeId).eq("date", date).maybeSingle();
+  // shift spans midnight (e.g. 17:30-02:30), so look it up by check-in time, not calendar date
+  const { data: a } = shift?.id ? await sb.from("attendance_report").select("*").eq("id", shift.id).maybeSingle() : { data: null };
   const status = !a ? "none" : a.check_out_at ? "out" : "in";
   const tz = office?.timezone ?? DEFAULT_TZ;
   const day = new Date().toLocaleDateString("en-IN", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });

@@ -145,6 +145,17 @@ export default async function Profile() {
               <label className="field">Phone {req}<input type="tel" name="emergency_phone" required defaultValue={p?.emergency_phone ?? ""} className={input} /></label>
             </Section>
 
+            {onboarding && (
+              <Section title="Bank details" hint="Where your salary is paid. Locked after saving; changes need HR approval.">
+                <label className="field">Account holder name {req}<input name="holder_name" required className={input} /></label>
+                <label className="field">Bank name {req}<input name="bank_name" required className={input} /></label>
+                <label className="field">Account number {req}<input name="account_number" required inputMode="numeric" pattern="[0-9]{6,20}" className={input} /></label>
+                <label className="field">IFSC {req}<input name="ifsc" required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" placeholder="HDFC0001234" className={`${input} uppercase`} /></label>
+                <label className="field">PAN<input name="pan" pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]" placeholder="ABCDE1234F" className={`${input} uppercase`} /></label>
+                <label className="field">UAN (optional)<input name="uan" inputMode="numeric" pattern="[0-9]{12}" className={input} /></label>
+              </Section>
+            )}
+
             <div className="sticky bottom-0 -mx-4 flex items-center justify-between gap-3 bg-bg/90 px-4 py-4 backdrop-blur sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
               <span className="text-xs text-muted">{req} Required</span>
               <button className="btn btn-primary h-11 px-5">
