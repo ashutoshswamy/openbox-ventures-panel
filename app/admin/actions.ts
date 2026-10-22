@@ -252,10 +252,13 @@ export async function saveAttendance(fd: FormData) {
   const inT = str(fd, "check_in");
   const outT = str(fd, "check_out");
   if (!inT) return "Check-in time required";
+  const inAt = zonedIso(date, inT, tz);
+  let outAt = outT ? zonedIso(date, outT, tz) : null;
+  if (outAt && outAt <= inAt) outAt = new Date(Date.parse(outAt) + 864e5).toISOString(); // overnight shift: out is next day
   const row = {
     mode: str(fd, "mode") ?? "office",
-    check_in_at: zonedIso(date, inT, tz),
-    check_out_at: outT ? zonedIso(date, outT, tz) : null,
+    check_in_at: inAt,
+    check_out_at: outAt,
     note: str(fd, "note"),
   };
   const id = str(fd, "id");
