@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BellRing, CalendarDays, Hourglass, ListTodo, Megaphone, Palmtree } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Megaphone } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, greeting, splitPost, todayIn } from "@/lib/util";
@@ -38,19 +38,16 @@ export default async function Dashboard() {
       <div className="space-y-6">
         <Today officeId={me.office_id} />
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface">
           {[
-            { href: "/todos", icon: ListTodo, n: openTodos ?? 0, label: "open tasks", note: due?.length ? `${due.length} due or overdue` : "nothing due" , warn: !!due?.length },
-            { href: "/leave", icon: Palmtree, n: daysLeft, label: "leave days left", note: "across all types", warn: false },
-            { href: "/leave", icon: Hourglass, n: pending ?? 0, label: "requests pending", note: pending ? "waiting for approval" : "all caught up", warn: !!pending },
-          ].map(({ href, icon: Icon, n, label, note, warn }) => (
-            <Link key={label} href={href} className="card card-link group flex items-center gap-4 p-4">
-              <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${warn ? "bg-amber-soft text-amber" : "bg-primary-soft text-text"}`}><Icon className="size-5" /></span>
-              <span className="min-w-0 flex-1 leading-tight">
-                <span className="text-2xl font-semibold tabular-nums">{n}</span> <span className="text-sm">{label}</span>
-                <span className={`block text-xs ${warn ? "text-amber" : "text-muted"}`}>{note}</span>
-              </span>
-              <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-0.5" />
+            { href: "/todos", n: openTodos ?? 0, label: "open tasks", note: due?.length ? `${due.length} due or overdue` : "none due", warn: !!due?.length },
+            { href: "/leave", n: daysLeft, label: "leave days left", note: "all types", warn: false },
+            { href: "/leave", n: pending ?? 0, label: "requests pending", note: pending ? "awaiting approval" : "all caught up", warn: !!pending },
+          ].map(({ href, n, label, note, warn }) => (
+            <Link key={label} href={href} className="px-4 py-3.5 transition-colors first:rounded-l-2xl last:rounded-r-2xl hover:bg-surface-2/60 md:px-5">
+              <p className="text-2xl font-semibold tracking-tight tabular-nums">{n}</p>
+              <p className="text-sm">{label}</p>
+              <p className={`text-xs ${warn ? "text-amber" : "text-muted"}`}>{note}</p>
             </Link>
           ))}
         </div>

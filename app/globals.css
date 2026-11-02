@@ -226,20 +226,19 @@ button, summary, .btn { user-select: none; }
 .org-team:not([open]) > summary .org-chev { rotate: -90deg; }
 .org-team:not([open]) > summary .org-card {
   position: relative; display: flex; width: 16rem; align-items: center; gap: 0.75rem;
-  padding: 0.75rem 0.875rem 0.75rem 0.75rem; text-align: left; overflow: hidden;
+  padding: 0.75rem 0.875rem; text-align: left;
   border: 1px solid var(--line); border-radius: 0.875rem; background: var(--surface);
   box-shadow: 0 1px 2px color-mix(in oklab, var(--text) 6%, transparent);
   transition: translate 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s, filter 0.2s;
 }
-.org-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--hue, var(--line)); } /* team accent */
-.org-avatar { flex: none; margin-left: 0.25rem; border-radius: 999px; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px color-mix(in oklab, var(--hue, var(--line)) 60%, transparent); }
+.org-avatar { flex: none; border-radius: 999px; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px color-mix(in oklab, var(--hue, var(--line)) 60%, transparent); }
 .org-sub { color: var(--muted); }
+.org-card:not(.org-root) .org-chip:first-of-type { background: color-mix(in oklab, var(--hue, var(--muted)) 14%, var(--surface)); color: color-mix(in oklab, var(--hue, var(--muted)) 70%, var(--text)); } /* department chip carries the team hue */
 .org-chip {
   display: inline-flex; align-items: center; gap: 0.25rem; min-width: 0; padding: 0.125rem 0.5rem; border-radius: 999px;
   font-size: 11px; font-weight: 500; color: var(--muted); background: var(--surface-2); font-variant-numeric: tabular-nums;
 }
 .org-root { background: var(--ink); border-color: var(--ink); color: var(--ink-text); }
-.org-root::before { background: var(--ink-text); opacity: 0.5; }
 .org-root .org-avatar { box-shadow: 0 0 0 2px var(--ink), 0 0 0 3.5px color-mix(in oklab, var(--ink-text) 40%, transparent); }
 .org-root .org-sub { color: color-mix(in oklab, var(--ink-text) 65%, transparent); }
 .org-root .org-chip { background: color-mix(in oklab, var(--ink-text) 12%, transparent); color: color-mix(in oklab, var(--ink-text) 80%, transparent); }

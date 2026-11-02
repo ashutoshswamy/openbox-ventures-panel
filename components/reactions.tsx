@@ -51,7 +51,7 @@ export function Reactions({ id, channelId, reactions, meId, mine, canReact }: { 
         </div>
       )}
       {canReact && (
-        <span className={`absolute -top-3 ${mine ? "left-2" : "right-2"}`}>
+        <span className={`absolute bottom-1.5 ${mine ? "right-full mr-11" : "left-full ml-11"}`}>{/* beside the bubble, past the reply button: never over a neighbouring message */}
           <button type="button" onClick={() => setOpen(!open)} title="React" aria-label="React" aria-expanded={open} className="btn btn-icon size-6 rounded-full border border-line bg-surface opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60">
             <SmilePlus className="size-3.5" />
           </button>
