@@ -85,9 +85,9 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
   const me = await pageMe();
   const sb = db();
-  const [{ data: channels }, { data }, { data: meta }] = await Promise.all([
+  const [{ data: channels }, { data, error: loadError }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
-    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, reactions:message_reactions(emoji, employee_id), sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
+    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, reactions:message_reactions(emoji, employee_id), sender:employees!messages_sender_id_fkey(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
     sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name))").eq("id", id).maybeSingle(),
   ]);
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null; peer_id?: string | null };
@@ -235,8 +235,9 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             </Fragment>
           );
         })}
+        {loadError && <li className="error m-auto" role="alert">Couldn&apos;t load messages: {loadError.message}</li>}
         {hrOnly && <li className="empty m-auto"><Users />You can manage who is in this chat, but its messages are private to its members.</li>}
-        {!hrOnly && !messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
+        {!hrOnly && !loadError && !messages.length && <li className="empty m-auto"><Hash />No messages yet. Say hello.</li>}
       </ol>
 
       {hrOnly ? null : channel.announcements ? (

@@ -17,7 +17,7 @@ export default async function Announcements() {
   const sb = db();
   const { data: ch } = await sb.from("channels").select("id").eq("announcements", true).maybeSingle();
   const { data } = ch
-    ? await sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees(full_name)").eq("channel_id", ch.id).order("created_at", { ascending: false }).limit(50)
+    ? await sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees!messages_sender_id_fkey(full_name)").eq("channel_id", ch.id).order("created_at", { ascending: false }).limit(50)
     : { data: [] };
   const posts = (data ?? []) as unknown as Post[];
 
