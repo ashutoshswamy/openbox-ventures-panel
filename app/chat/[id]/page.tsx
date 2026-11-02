@@ -156,7 +156,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   }
   const byId = new Map(messages.map((m) => [m.id, m]));
   const name = channel.name ?? "Unnamed";
-  const liveCall = viewOnly ? null : liveCallOf(messages);
+  const liveCall = viewOnly && !(me.role === "admin" && channel.type !== "dm") ? null : liveCallOf(messages);
 
   return (
     <ReplyProvider>
@@ -176,7 +176,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           </p>
         </div>
         {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} ids={Object.fromEntries(idOf)} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
-        {!viewOnly && !channel.announcements && <CallButton channelId={id} name={me.full_name} />}
+        {(!viewOnly || (me.role === "admin" && channel.type !== "dm")) && !channel.announcements && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
       <ol className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-y-auto px-4 py-4 md:px-6">
