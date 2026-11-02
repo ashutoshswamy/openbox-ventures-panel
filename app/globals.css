@@ -76,15 +76,29 @@
   --color-green-soft: var(--green-soft);
   --color-blue: var(--blue);
   --color-blue-soft: var(--blue-soft);
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  letter-spacing: -0.005em;
+  font-feature-settings: "ss01", "cv11"; /* Geist: open-tail alternates read cleaner at 13-15px */
+  letter-spacing: -0.006em;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
+
+/* Headings break evenly, prose avoids one-word last lines */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* Light text on dark surfaces looks thinner: open leading and tracking a touch */
+:root[data-theme="dark"] body { letter-spacing: 0; line-height: 1.55; }
+
+/* Numbers align in columns everywhere: tables, stats, times, payroll */
+.table, .tnum { font-variant-numeric: tabular-nums slashed-zero; }
 
 /* layered so `outline-none` utilities on inputs can override it */
 @layer base {
@@ -151,7 +165,7 @@ button, summary, .btn { user-select: none; }
     @apply w-full text-left text-sm;
   }
   .table th {
-    @apply border-b border-line px-3 pb-2.5 text-xs font-medium whitespace-nowrap text-muted;
+    @apply border-b border-line px-3 pb-2.5 text-xs font-medium tracking-[0.01em] whitespace-nowrap text-muted;
   }
   .table td {
     @apply border-b border-line/70 px-3 py-3 align-middle;
@@ -159,14 +173,14 @@ button, summary, .btn { user-select: none; }
   .table tbody tr { @apply transition-colors hover:bg-surface-2/60; }
   .table tbody tr:last-child td { @apply border-b-0; }
   .h1 {
-    @apply text-[28px] leading-tight font-semibold tracking-[-0.025em];
+    @apply text-[28px] leading-[1.15] font-semibold tracking-[-0.03em];
   }
   .h2 {
-    @apply mb-4 flex items-center gap-2 text-[15px] font-semibold tracking-tight;
+    @apply mb-4 flex items-center gap-2 text-base leading-snug font-semibold tracking-[-0.015em];
   }
   .h2 svg { @apply size-4 text-muted; }
   .eyebrow {
-    @apply text-sm font-medium text-muted;
+    @apply text-sm leading-snug font-medium tracking-[-0.003em] text-muted;
   }
   .badge {
     @apply inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-muted;
