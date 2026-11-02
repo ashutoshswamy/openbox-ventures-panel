@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { DM_Sans, Space_Grotesk } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import "./globals.css";
@@ -10,8 +10,6 @@ const dmSans = DM_Sans({
   subsets: ["latin"],
   axes: ["opsz"],
 });
-// ponytail: "grotesk" read as Space Grotesk; swap the import for Hanken/Schibsted/etc. if another was meant
-const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"] });
 
 const description = "Attendance, leave, payroll, HR, chat and meetings for the Open Box Ventures LLP team.";
 
@@ -55,7 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-IN"
-      className={`${dmSans.variable} ${grotesk.variable} h-full antialiased`}
+      className={`${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning // data-theme is set by themeScript before React hydrates
     >
       <head>
