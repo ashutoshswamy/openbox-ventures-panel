@@ -11,7 +11,7 @@ const HUES = ["var(--blue)", "var(--green)", "var(--amber)", "var(--red)"];
 function Card({ p, depth, direct, team }: { p: OrgPerson; depth: number; direct?: number; team?: number }) {
   return (
     <div data-name={p.full_name.toLowerCase()} className={`org-card ${depth === 0 ? "org-root" : ""}`} style={{ "--d": Math.min(depth, 6) } as React.CSSProperties}>
-      <span className="org-avatar"><Avatar name={p.full_name} src={p.avatar_url} size="size-12 text-base" /></span>
+      <span className="org-avatar"><Avatar name={p.full_name} src={p.avatar_url} size="size-12 text-base" userId={p.id} /></span>
       <div className="w-full min-w-0">
         <div className="truncate text-sm font-semibold tracking-tight">{p.full_name}</div>
         <div className="org-sub truncate text-xs">{p.designation ?? "No designation"}</div>

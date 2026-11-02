@@ -19,9 +19,10 @@ export async function checkIn(mode: "office" | "wfh", lat?: number, lng?: number
   done();
 }
 
-export async function checkOut() {
+// reports = what the office requires at check-out (see reports_due()); check_out() enforces it
+export async function checkOut(reports: { daily?: string; weekly?: string; monthly?: string } = {}) {
   await requireMe();
-  const { error } = await db().rpc("check_out");
+  const { error } = await db().rpc("check_out", { p_daily: reports.daily ?? null, p_weekly: reports.weekly ?? null, p_monthly: reports.monthly ?? null });
   if (error) return error.message;
   done();
 }
@@ -114,6 +115,16 @@ export async function sendMessage(fd: FormData) {
   revalidatePath(`/chat/${channel_id}`);
 }
 
+// Toggle my reaction: RLS limits it to chats I'm in.
+export async function react(messageId: string, emoji: string) {
+  const me = await requireMe();
+  const sb = db();
+  const row = { message_id: messageId, employee_id: me.id, emoji };
+  const { data } = await sb.from("message_reactions").select("emoji").match(row).maybeSingle();
+  const { error } = data ? await sb.from("message_reactions").delete().match(row) : await sb.from("message_reactions").insert(row);
+  if (error) return error.message;
+}
+
 export type Bucket = "attachments" | "leave-docs";
 const BUCKETS: Bucket[] = ["attachments", "leave-docs"];
 
@@ -181,6 +192,15 @@ export async function reportIssue(fd: FormData) {
   const body = str(fd, "body");
   if (!subject || !body) return "Add a subject and describe the issue";
   const { error } = await db().from("issues").insert({ employee_id: me.id, subject, body });
+  if (error) return error.message;
+  done();
+}
+
+// ── Performance review ──
+
+export async function selfReview(fd: FormData) {
+  await requireMe();
+  const { error } = await db().rpc("submit_self_review", { p_id: str(fd, "id"), p_rating: Number(str(fd, "rating")), p_comments: str(fd, "comments") });
   if (error) return error.message;
   done();
 }

@@ -6,6 +6,9 @@ import { fmtDate } from "@/lib/util";
 import { Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
+import { AutoForm } from "@/components/auto-form";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
 import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee } from "../actions";
 
@@ -126,20 +129,23 @@ function Details({ e, p }: { e: Emp; p?: Profile }) {
   );
 }
 
+const SIZE = 25;
+
 export default async function Employees({ searchParams }: PageProps<"/admin/employees">) {
   const me = await staffPage();
   const isAdmin = me.role === "admin";
   const canEdit = isAdmin || me.role === "hr"; // personal details; HR is limited to their office by the query below
-  const { q, status: st } = await searchParams;
+  const { q, status: st, page: pg } = await searchParams;
+  const { page, from, to } = pageOf(pg, SIZE);
   const status = st === "active" || st === "inactive" ? st : "all";
   const sb = db();
-  let query = sb.from("employees").select("*").order("active", { ascending: false }).order("full_name");
+  let query = sb.from("employees").select("*", { count: "exact" }).order("active", { ascending: false }).order("full_name").range(from, to);
   if (!isAdmin) query = query.eq("office_id", me.office_id ?? "");
   if (status !== "all") query = query.eq("active", status === "active");
   if (q) query = query.ilike("full_name", `%${String(q).replace(/[%,()]/g, "")}%`);
   let everyoneQ = sb.from("employees").select("id, name:full_name, active").order("full_name");
   if (!isAdmin) everyoneQ = everyoneQ.eq("office_id", me.office_id ?? "");
-  const [{ data: emps }, { data: offices }, { data: depts }, { data: everyone }] = await Promise.all([
+  const [{ data: emps, count: total }, { data: offices }, { data: depts }, { data: everyone }] = await Promise.all([
     query,
     sb.from("offices").select("id, name").order("name"),
     sb.from("departments").select("id, name, office_id").order("name"),
@@ -168,7 +174,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
 
   return (
     <>
-      <PageHeader title="Employees" sub={`${emps?.length ?? 0} people${waiting ? ` · ${waiting} waiting for a role` : ""}`} />
+      <PageHeader title="Employees" sub={`${total ?? 0} people${waiting ? ` · ${waiting} waiting for a role` : ""}`} />
       <div className="max-w-5xl space-y-6">
         {isAdmin && (
           <details className="card group">
@@ -193,11 +199,11 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
           ))}
         </nav>
 
-        <form className="relative">
+        <AutoForm className="relative">
           {status !== "all" && <input type="hidden" name="status" value={status} />}
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q as string} placeholder="Search by name" className="input pl-9" />
-        </form>
+        </AutoForm>
 
         <ul className="card divide-y divide-line p-0">
           {emps?.map((e: Emp) => {
@@ -262,6 +268,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
           })}
           {!emps?.length && <li className="empty"><Users /> No employees found.</li>}
         </ul>
+        <Pager page={page} total={total ?? 0} size={SIZE} />
       </div>
     </>
   );

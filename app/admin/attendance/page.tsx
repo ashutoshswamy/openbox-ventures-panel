@@ -1,10 +1,14 @@
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
+import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
 import Link from "next/link";
-import { Building2, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
+import { Building2, CalendarDays, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
+import { AutoForm } from "@/components/auto-form";
+import { MonthCalendar, type CalCell } from "@/components/month-calendar";
+import { Pager } from "@/components/pager";
 import { PageHeader } from "@/components/shell";
 import { deleteAttendance, reviewRegularization, saveAttendance } from "../actions";
 
@@ -13,22 +17,57 @@ export const metadata = { title: "Attendance" };
 const hhmm = (iso: string | null, tz: string) =>
   iso ? new Date(iso).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" }) : "";
 
+const SIZE = 25;
+
 export default async function AdminAttendance({ searchParams }: PageProps<"/admin/attendance">) {
   const me = await staffPage();
   const sp = await searchParams;
-  const date = String(sp.date ?? todayIn());
+  const today = todayIn();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(sp.date)) ? String(sp.date) : today;
+  const month = validMonth(sp.month, date.slice(0, 7));
+  const { from, to } = monthRange(month);
+  const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const office = me.role === "admin" ? (sp.office ? String(sp.office) : null) : me.office_id;
   const sb = db();
 
   let emps = sb.from("employees").select("id, full_name, office_id, avatar_url").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
   if (office) emps = emps.eq("office_id", office);
-  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }] = await Promise.all([
+  // month calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the month.
+  const monthRows = async () => {
+    const all: { date: string; late: boolean }[] = [];
+    for (let i = 0; ; i += 1000) {
+      let mq = sb.from("attendance_report").select("date, late").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
+      if (office) mq = mq.eq("office_id", office);
+      const { data } = await mq;
+      all.push(...(data ?? []));
+      if ((data?.length ?? 0) < 1000) return all;
+    }
+  };
+  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }, monthAtt, { data: monthLeaves }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, timezone").order("name"),
     sb.from("attendance_report").select("*").eq("date", date),
     sb.from("leave_requests").select("employee_id, type:leave_types(name)").eq("status", "approved").lte("start_date", date).gte("end_date", date),
     sb.from("regularizations").select("*, employee:employees!regularizations_employee_id_fkey(full_name, avatar_url, office_id)").eq("status", "pending").neq("employee_id", me.id).order("date"),
+    monthRows(),
+    sb.from("leave_requests").select("employee_id, start_date, end_date, employee:employees!leave_requests_employee_id_fkey(office_id)").eq("status", "approved").lte("start_date", to).gte("end_date", from),
   ]);
+
+  const cells: Record<string, CalCell> = {};
+  for (const d of eachDay(from, to)) {
+    const day = monthAtt.filter((r) => r.date === d);
+    const away = (monthLeaves ?? []).filter((l) => (!office || (l.employee as { office_id?: string } | null)?.office_id === office) && daysWithin(l.start_date, l.end_date, from, to).includes(d)).length;
+    const q = new URLSearchParams({ ...(office ? { office } : {}), date: d, month });
+    cells[d] = {
+      href: `?${q}`,
+      off: isoDow(d) > 5,
+      lines: day.length || away ? [
+        { text: `${day.length} in`, tone: "green" as const },
+        ...(day.some((r) => r.late) ? [{ text: `${day.filter((r) => r.late).length} late`, tone: "amber" as const }] : []),
+        ...(away ? [{ text: `${away} on leave`, tone: "muted" as const }] : []),
+      ] : [],
+    };
+  }
   const canReview = me.role === "hr" || me.role === "admin"; // review_regularization() enforces this too
   const tzOf = (officeId: string | null) => offices?.find((o) => o.id === officeId)?.timezone ?? DEFAULT_TZ;
   const recOf = (id: string) => rows?.find((r) => r.employee_id === id);
@@ -43,7 +82,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       <Link href={`${me.role === "hr" ? "/hr" : "/admin"}/attendance/analytics`} className="btn"><ChartColumn /> Analytics</Link>
     </PageHeader>
     <div className="space-y-6">
-      <form className="flex flex-wrap items-center gap-2">
+      <AutoForm className="flex flex-wrap items-center gap-2">
         <input type="date" name="date" defaultValue={date} className="input w-auto" />
         {me.role === "admin" && (
           <select name="office" defaultValue={office ?? ""} className="input w-auto">
@@ -51,8 +90,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
             {offices?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
         )}
-        <button className="btn">Show</button>
-      </form>
+      </AutoForm>
 
       {!!regs?.length && (
         <section className="card">
@@ -87,11 +125,18 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
         </section>
       )}
 
+      <section className="card">
+        <h2 className="h2"><CalendarDays /> Month at a glance</h2>
+        <MonthCalendar month={month} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["muted", "On leave"]]} />
+        <p className="mt-2 text-xs text-muted">Click a day to list who was in below.</p>
+      </section>
+
       <section className="card overflow-x-auto">
+        <h2 className="h2">{fmtDate(date)}</h2>
         <table className="table">
           <thead><tr><th>Employee</th><th>Status</th><th>In</th><th>Out</th><th>Hours</th><th></th></tr></thead>
           <tbody>
-            {people?.map((p) => {
+            {people?.slice(r0, r1 + 1).map((p) => {
               const r = recOf(p.id);
               const l = leaveOf(p.id);
               const tz = tzOf(p.office_id);
@@ -142,6 +187,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
             })}
           </tbody>
         </table>
+        <Pager page={page} total={people?.length ?? 0} size={SIZE} />
       </section>
 
       <section className="card">

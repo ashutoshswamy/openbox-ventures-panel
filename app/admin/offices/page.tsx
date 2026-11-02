@@ -12,6 +12,7 @@ export const metadata = { title: "Offices" };
 type Office = {
   id: string; name: string; address: string | null; timezone: string; lat: number | null; lng: number | null;
   radius_m: number; work_start: string; work_end: string; grace_min: number; work_days: number[];
+  report_daily: boolean; report_weekly: boolean; report_monthly: boolean;
 };
 
 function OfficeForm({ o }: { o?: Office }) {
@@ -43,6 +44,17 @@ function OfficeForm({ o }: { o?: Office }) {
             </label>
           ))}
         </div>
+      </fieldset>
+      <fieldset className="field sm:col-span-2">
+        <legend className="mb-1.5">Work reports at check-out</legend>
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          {([["report_daily", "Daily", "every check-out"], ["report_weekly", "Weekly", "last working day of the week"], ["report_monthly", "Monthly", "last working day of the month"]] as const).map(([name, label, when]) => (
+            <label key={name} className="flex items-center gap-2">
+              <input type="checkbox" name={name} defaultChecked={o?.[name] ?? false} /> {label} <span className="text-muted">({when})</span>
+            </label>
+          ))}
+        </div>
+        <span className="mt-1 text-xs text-muted">Employees must write what they did before they can check out. Managers read these under Reports.</span>
       </fieldset>
       <div className="sm:col-span-2">{o ? <button className="btn btn-primary"><Save /> Save changes</button> : <button className="btn btn-primary"><Plus /> Create office</button>}</div>
     </ActionForm>

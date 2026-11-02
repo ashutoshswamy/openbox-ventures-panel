@@ -10,6 +10,7 @@ import { AttachInput } from "@/components/attach-input";
 import { MemberList } from "@/components/member-list";
 import { MentionInput } from "@/components/mention-input";
 import { ReplyButton, ReplyField, ReplyProvider } from "@/components/reply";
+import { Reactions } from "@/components/reactions";
 import { Attachment } from "@/components/attachment";
 import { Avatar, tintFor } from "@/components/avatar";
 import { CallButton, CallCard, Ended } from "@/components/call-button";
@@ -78,7 +79,7 @@ function Tick({ state }: { state: "sent" | "delivered" | "read" }) {
   return state === "sent" ? <Check className={cls} aria-label="Sent" /> : <CheckCheck className={cls} aria-label={state === "read" ? "Read" : "Delivered"} />;
 }
 
-type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; reply_to: string | null; sender: { full_name: string; avatar_url: string | null } | null };
+type Msg = { id: string; body: string | null; attachment_path: string | null; created_at: string; sender_id: string | null; reply_to: string | null; reactions: { emoji: string; employee_id: string }[]; sender: { full_name: string; avatar_url: string | null } | null };
 
 export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const { id } = await params;
@@ -86,10 +87,10 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const sb = db();
   const [{ data: channels }, { data }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
-    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
+    sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, reactions:message_reactions(emoji, employee_id), sender:employees(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
     sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name))").eq("id", id).maybeSingle(),
   ]);
-  type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null };
+  type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null; peer_id?: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
   // admins read any channel they're not in, DMs between employees included (RLS: admin_read), without joining it
   // HR sees group chats they're not in only to manage who's in them (RLS: hr_read), never their messages
@@ -112,16 +113,20 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
     );
   // tagging: people in this chat; admins only for admins and HR. Group/DM = its members; department/office = everyone in it; company channels = everyone.
   const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string } | null }[]).filter((m) => m.employee);
+  const idOf = new Map(members.map((m) => [m.employee!.full_name, m.employee_id])); // for the member list
   let people = members.map((m) => m.employee!.full_name);
   if (meta.type === "department" || meta.type === "office" || meta.type === "global" || meta.announcements) {
-    let q = sb.from("employees").select("full_name").eq("active", true).not("clerk_user_id", "is", null);
+    let q = sb.from("employees").select("id, full_name").eq("active", true).not("clerk_user_id", "is", null);
     if (meta.type === "department" && !meta.announcements) q = q.eq("department_id", meta.department_id!);
     else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
-    people = [...((await q).data ?? []).map((p) => p.full_name), ...people]; // + people an admin/HR added from outside
+    const found = (await q).data ?? [];
+    for (const p of found) idOf.set(p.full_name, p.id);
+    people = [...found.map((p) => p.full_name), ...people]; // + people an admin/HR added from outside
   }
   // admins aren't members (RLS hides them), so only admins and HR get them (names only) in the taggable list
   if (me.role === "admin" || me.role === "hr") {
-    const { data: admins } = await adminDb().from("employees").select("full_name").eq("role", "admin").eq("active", true);
+    const { data: admins } = await adminDb().from("employees").select("id, full_name").eq("role", "admin").eq("active", true);
+    for (const a of admins ?? []) idOf.set(a.full_name, a.id);
     people.push(...(admins ?? []).map((a) => a.full_name));
   }
   const roster = [...new Set(people)].sort(); // everyone in the chat, me included
@@ -160,7 +165,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
         {channel.announcements ? (
           <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg"><Megaphone className="size-4" /></span>
         ) : channel.type === "dm" ? (
-          <Avatar name={name} src={channel.avatar_url} size="size-9" />
+          <Avatar name={name} src={channel.avatar_url} size="size-9" userId={channel.peer_id} />
         ) : (
           <span className="grid size-9 place-items-center rounded-lg bg-surface-2 text-muted">{channel.type === "department" ? <Users className="size-4" /> : channel.type === "office" ? <Building2 className="size-4" /> : channel.type === "global" ? <Globe className="size-4" /> : <Hash className="size-4" />}</span>
         )}
@@ -170,7 +175,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
-        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
+        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} ids={Object.fromEntries(idOf)} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
         {!viewOnly && !channel.announcements && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
@@ -208,8 +213,8 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
           return (
             <Fragment key={m.id}>
             <li id={`m-${m.id}`} className={`group flex scroll-mt-4 items-end gap-2 ${mine ? "flex-row-reverse" : ""} ${first || newDay ? "mt-3" : ""} ${i === 0 ? "rise" : ""}`}>
-              {!mine && (first || newDay ? <Avatar name={who} src={m.sender?.avatar_url} size="size-7 text-[11px]" /> : <span className="w-7 shrink-0" />)}
-              <div className={`max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
+              {!mine && (first || newDay ? <Avatar name={who} src={m.sender?.avatar_url} size="size-7 text-[11px]" userId={m.sender_id} /> : <span className="w-7 shrink-0" />)}
+              <div className={`relative max-w-[75%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
                 {!mine && (first || newDay) && <span className="mb-1 ml-1 text-xs font-medium text-muted">{who}</span>}
                 <div className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${mine ? "rounded-br-md bg-primary text-primary-fg" : "rounded-bl-md bg-surface-2"}`}>
                   {m.reply_to && (
@@ -222,6 +227,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
                   <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
                 </div>
+                <Reactions id={m.id} reactions={m.reactions ?? []} meId={me.id} mine={mine} canReact={!viewOnly} />
               </div>
               <ReplyButton id={m.id} who={mine ? "You" : who} text={snippet(m)} />
             </li>

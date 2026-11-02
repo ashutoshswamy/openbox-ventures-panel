@@ -41,6 +41,9 @@ export async function saveOffice(fd: FormData) {
     work_end: str(fd, "work_end") ?? "18:30",
     grace_min: num(fd, "grace_min") ?? 15,
     work_days: fd.getAll("work_days").map(Number),
+    report_daily: fd.get("report_daily") === "on",
+    report_weekly: fd.get("report_weekly") === "on",
+    report_monthly: fd.get("report_monthly") === "on",
   };
   try {
     new Intl.DateTimeFormat("en", { timeZone: row.timezone });

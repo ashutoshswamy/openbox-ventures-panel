@@ -7,6 +7,7 @@ import { Bell, MapPin, Phone, PhoneOff, Volume2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { CALL_AUDIO, CALL_ENDED, CALL_VIDEO } from "@/lib/util";
+import { getManual, onManualChange, setStates, type Status } from "@/lib/presence";
 
 // Re-renders server components when any published table changes in a row the user can read (RLS-filtered),
 // and when the tab comes back into view (catches events missed while asleep/offline).
@@ -14,6 +15,7 @@ import { CALL_AUDIO, CALL_ENDED, CALL_VIDEO } from "@/lib/util";
 type Msg = { id: string; channel_id: string; sender_id: string | null; body: string | null };
 type Ringing = { channel: string; from: string; audio: boolean };
 const RING_MS = 30_000;
+const IDLE_MS = 5 * 60_000; // no input this long → Idle (only when my status is Online)
 
 // Ringtone without an audio file: two-tone burst every 2s. Browsers only allow sound after the user has
 // interacted with the page once (unlocked by the click listener below).
@@ -107,6 +109,7 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
         return;
       }
       if (!m.sender_id || m.sender_id === meId) return; // system posts (announcements) don't ping
+      if (getManual() === "dnd") return; // Do Not Disturb: no chime, ring, popup or notification (unread badges still count)
       const href = `/chat/${m.channel_id}`;
       const audio = !!m.body?.startsWith(CALL_AUDIO);
       const call = audio || !!m.body?.startsWith(CALL_VIDEO); // startCall() message prefixes
@@ -136,10 +139,57 @@ export function LiveRefresh({ meId, meName }: { meId: string; meName: string }) 
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, onMessage)
       .subscribe();
     document.addEventListener("visibilitychange", onVisible);
+
+    // Presence: a heartbeat per tab, written server-side for the signed-in person only (presence_ping), so it can't be faked.
+    // Stop pinging (tab closed, phone locked, offline) and the server drops me from the list after 2 min.
+    // ponytail: polling every 30 s; swap for a Realtime channel if latency matters.
+    let alive = true;
+    let active = Date.now();
+    let sent: Status | undefined;
+    let lastToken: string | null = null;
+    const tab = crypto.randomUUID();
+    const effective = (): Status => (getManual() === "online" && Date.now() - active > IDLE_MS ? "idle" : getManual());
+    const beat = async () => {
+      sent = effective();
+      try {
+        lastToken = await getToken();
+        await sb.rpc("presence_ping", { p_tab: tab, p_status: sent });
+        const { data } = await sb.rpc("presence_list");
+        if (alive && data) setStates(new Map((data as { employee_id: string; status: Status }[]).map((r) => [r.employee_id, r.status])));
+      } catch {} // offline: the next tick retries
+    };
+    const bump = () => {
+      active = Date.now();
+      if (sent === "idle" && getManual() === "online") beat(); // woke up
+    };
+    const leave = () => {
+      if (lastToken) fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/presence_leave`, {
+        method: "POST", keepalive: true,
+        headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, authorization: `Bearer ${lastToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ p_tab: tab }),
+      }).catch(() => {});
+    };
+    const acts = ["pointerdown", "pointermove", "keydown", "scroll", "touchstart", "focus"] as const;
+    acts.forEach((a) => window.addEventListener(a, bump, { passive: true }));
+    const tick = setInterval(beat, 30_000); // background tabs get throttled to ~1/min; the server allows 2 min
+    const unsub = onManualChange(beat); // status picked in the menu → tell everyone now
+    const onVis = () => document.visibilityState === "visible" && bump();
+    document.addEventListener("visibilitychange", onVis);
+    addEventListener("pagehide", leave);
+    beat();
+
     return () => {
       clearTimeout(t);
+      alive = false;
+      clearInterval(tick);
+      unsub();
+      leave();
+      removeEventListener("pagehide", leave);
+      acts.forEach((a) => window.removeEventListener(a, bump));
+      document.removeEventListener("visibilitychange", onVis);
       document.removeEventListener("visibilitychange", onVisible);
       sb.removeChannel(ch);
+      setStates(new Map());
       stopRing.current();
     };
   }, [isSignedIn, getToken, router, meId, meName]);
@@ -178,7 +228,7 @@ const geoPerm = async (): Promise<Perm> => {
 function PermissionGate() {
   const [p, setP] = useState<{ n: Perm; g: Perm } | null>(null);
   const [skip, setSkip] = useState(false);
-  const check = async () => setP({ n: notifPerm(), g: await geoPerm() });
+  const check = () => { geoPerm().then((g) => setP({ n: notifPerm(), g })); };
 
   useEffect(() => {
     check();

@@ -7,6 +7,8 @@ import { UserMenu, type PanelSwitch } from "./user-menu";
 import { AvatarSync } from "./avatar-sync";
 import { LiveRefresh } from "./live-refresh";
 import { GlobalSearch } from "./search";
+import { Pwa } from "./pwa";
+import { StatusPicker } from "./status-dot";
 
 function Logo({ panel }: { panel: string }) {
   return (
@@ -41,7 +43,7 @@ export function Shell({
         <div className="flex h-full flex-col gap-5 lg:p-3">
           <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:px-2 lg:pt-2">
             <Logo panel={panel} />
-            <div className="flex shrink-0 items-center gap-2 lg:hidden"><ThemeToggle /><UserMenu switchTo={switchTo} /></div>
+            <div className="flex shrink-0 items-center gap-2 lg:hidden"><Pwa /><StatusPicker compact /><ThemeToggle /><UserMenu switchTo={switchTo} /></div>
           </div>
           <div className="-mb-3 px-3 lg:mb-0 lg:px-0"><GlobalSearch links={links} /></div>
           <Nav links={links} />
@@ -51,12 +53,13 @@ export function Shell({
               <div className="truncate text-sm font-medium">{user.name}</div>
               <div className="text-xs text-muted capitalize">{user.role === "hr" ? "HR" : user.role.replace("_", " ")}</div>
             </div>
+            <div className="ml-auto"><StatusPicker compact /></div>
           </div>
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10 lg:pt-4">
         {/* own row, not absolute: would collide with PageHeader actions on the right */}
-        <div className="mb-4 hidden justify-end lg:flex"><ThemeToggle /></div>
+        <div className="mb-4 hidden items-center justify-end gap-2 lg:flex"><Pwa /><ThemeToggle /></div>
         <div className="rise mx-auto max-w-6xl">{children}</div>
       </main>
     </div>

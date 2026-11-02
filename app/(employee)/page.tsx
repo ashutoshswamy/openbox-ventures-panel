@@ -34,7 +34,7 @@ export default async function Dashboard() {
     <>
       <PageHeader title={`${greeting()}, ${me.full_name.split(" ")[0]}`} sub="Here's your day at a glance." />
       <div className="space-y-6">
-        <Today employeeId={me.id} officeId={me.office_id} />
+        <Today officeId={me.office_id} />
 
         {reminders.length > 0 && (
           <section className="card">

@@ -1,7 +1,10 @@
 import { CalendarDays, CalendarPlus, FileText, PartyPopper, Send, Upload, X } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { LEAVE_TONE, fmtDate } from "@/lib/util";
+import { LEAVE_TONE, fmtDate, todayIn } from "@/lib/util";
+import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
+import { MonthCalendar, type CalCell } from "@/components/month-calendar";
+import { Pager } from "@/components/pager";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { PageHeader } from "@/components/shell";
@@ -9,15 +12,39 @@ import { applyLeave, cancelLeave, updateLeaveDoc } from "../actions";
 
 export const metadata = { title: "Leave" };
 
-export default async function Leave() {
+const SIZE = 10;
+
+export default async function Leave({ searchParams }: PageProps<"/leave">) {
   const me = await employeePage();
+  const sp = await searchParams;
+  const today = todayIn();
+  const month = validMonth(sp.month, today.slice(0, 7));
+  const { from, to } = monthRange(month);
+  const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const sb = db();
-  const [{ data: balances }, { data: types }, { data: requests }, { data: holidays }] = await Promise.all([
+  const [{ data: balances }, { data: types }, { data: requests, count }, { data: holidays }, { data: monthLeaves }, { data: monthHols }, { data: office }] = await Promise.all([
     sb.from("leave_balances").select("*").eq("employee_id", me.id).order("name"),
     sb.from("leave_types").select("id, name, allow_half_day, doc_required_after_days").eq("active", true).order("name"),
-    sb.from("leave_requests").select("*, type:leave_types(name)").eq("employee_id", me.id).order("start_date", { ascending: false }).limit(50),
+    sb.from("leave_requests").select("*, type:leave_types(name)", { count: "exact" }).eq("employee_id", me.id).order("start_date", { ascending: false }).range(r0, r1),
     sb.from("holidays").select("date, name").gte("date", new Date().toISOString().slice(0, 10)).order("date").limit(8),
+    sb.from("leave_requests").select("start_date, end_date, half_day, status, type:leave_types(name)").eq("employee_id", me.id).in("status", ["approved", "pending", "manager_approved"]).lte("start_date", to).gte("end_date", from),
+    sb.from("holidays").select("date, name, office_id").gte("date", from).lte("date", to),
+    me.office_id ? sb.from("offices").select("work_days").eq("id", me.office_id).maybeSingle() : { data: null },
   ]);
+
+  const workDays = office?.work_days ?? [1, 2, 3, 4, 5];
+  const cells: Record<string, CalCell> = {};
+  for (const d of eachDay(from, to)) {
+    const hol = monthHols?.find((h) => h.date === d && (!h.office_id || h.office_id === me.office_id));
+    const lines = [
+      ...(hol ? [{ text: hol.name, tone: "blue" as const }] : []),
+      ...(monthLeaves ?? []).filter((l) => daysWithin(l.start_date, l.end_date, from, to).includes(d)).map((l) => ({
+        text: `${(l.type as { name?: string } | null)?.name ?? "Leave"}${l.half_day ? " (half)" : ""}${l.status === "approved" ? "" : " · pending"}`,
+        tone: (l.status === "approved" ? "amber" : "muted") as "amber" | "muted",
+      })),
+    ];
+    cells[d] = { lines, off: !!hol || !workDays.includes(isoDow(d)) };
+  }
 
   return (
     <>
@@ -86,6 +113,11 @@ export default async function Leave() {
         </div>
 
         <section className="card">
+          <h2 className="h2"><CalendarDays /> Calendar</h2>
+          <MonthCalendar month={month} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Pending approval"], ["blue", "Holiday"]]} />
+        </section>
+
+        <section className="card">
           <h2 className="h2"><CalendarDays /> My requests</h2>
           {requests?.length ? (
             <div className="overflow-x-auto">
@@ -125,6 +157,7 @@ export default async function Leave() {
           ) : (
             <p className="empty"><CalendarDays /> You haven&apos;t requested any leave yet.</p>
           )}
+          <Pager page={page} total={count ?? 0} size={SIZE} />
         </section>
       </div>
     </>

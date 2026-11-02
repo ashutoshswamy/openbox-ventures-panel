@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, CalendarDays, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, ScrollText, UserRound, Users, Wallet, Workflow,
+  Building2, CalendarDays, ClipboardCheck, FileText, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, ScrollText, UserRound, Users, Wallet, Workflow,
 } from "lucide-react";
 
 const icons = {
@@ -25,12 +25,14 @@ const icons = {
   payroll: Wallet,
   org: Workflow,
   audit: ScrollText,
+  reviews: ClipboardCheck,
+  reports: FileText,
 };
 export type NavIcon = keyof typeof icons;
 export type NavLink = [href: string, label: string, icon: NavIcon, count?: number];
 
 function active(path: string, href: string) {
-  return href === "/" || href === "/admin" || href === "/hr" || /^\/demo\/(workspace|admin|hr)$/.test(href) ? path === href : path === href || path.startsWith(href + "/");
+  return href === "/" || href === "/admin" || href === "/hr" ? path === href : path === href || path.startsWith(href + "/");
 }
 
 export function Nav({ links }: { links: NavLink[] }) {

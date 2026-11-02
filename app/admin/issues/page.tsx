@@ -5,7 +5,9 @@ import { db } from "@/lib/supabase";
 import { fmtDate } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
+import { Pager } from "@/components/pager";
 import { PageHeader } from "@/components/shell";
+import { pageOf } from "@/lib/calendar";
 import { setIssueStatus } from "../actions";
 
 export const metadata = { title: "Issues" };
@@ -15,17 +17,21 @@ type Issue = {
   reporter: { full_name: string; email: string; designation: string | null; avatar_url: string | null } | null; resolver: { full_name: string } | null;
 };
 
+const SIZE = 15;
+
 export default async function Issues({ searchParams }: PageProps<"/admin/issues">) {
   await adminPage();
-  const status = (await searchParams).status === "resolved" ? "resolved" : "open";
+  const sp = await searchParams;
+  const status = sp.status === "resolved" ? "resolved" : "open";
+  const { page, from, to } = pageOf(sp.page, SIZE);
   const sb = db();
-  const [{ data }, { count: openCount }] = await Promise.all([
+  const [{ data, count }, { count: openCount }] = await Promise.all([
     sb
       .from("issues")
-      .select("*, reporter:employees!issues_employee_id_fkey(full_name, email, designation, avatar_url), resolver:employees!issues_resolved_by_fkey(full_name)")
+      .select("*, reporter:employees!issues_employee_id_fkey(full_name, email, designation, avatar_url), resolver:employees!issues_resolved_by_fkey(full_name)", { count: "exact" })
       .eq("status", status)
       .order(status === "open" ? "created_at" : "resolved_at", { ascending: status === "open" })
-      .limit(100),
+      .range(from, to),
     sb.from("issues").select("id", { count: "exact", head: true }).eq("status", "open"),
   ]);
   const issues = (data ?? []) as Issue[];
@@ -79,6 +85,7 @@ export default async function Issues({ searchParams }: PageProps<"/admin/issues"
           </article>
         ))}
         {!issues.length && <p className="card empty"><Inbox /> {status === "open" ? "No open issues. All clear." : "No resolved issues yet."}</p>}
+        <Pager page={page} total={count ?? 0} size={SIZE} />
       </div>
     </>
   );

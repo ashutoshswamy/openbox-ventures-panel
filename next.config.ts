@@ -18,6 +18,8 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "geolocation=(self), camera=(), microphone=(), payment=()" },
         ],
       },
+      // service worker must never be cached stale
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
       // behind login: keep out of search (covers files + CSV too). /sign-in is the one indexable page.
       { source: "/:path((?!sign-in(?:/|$)|robots\\.txt$|sitemap\\.xml$).*)", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];

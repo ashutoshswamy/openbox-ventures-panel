@@ -15,6 +15,7 @@ export default async function HrLayout({ children }: { children: React.ReactNode
     ["/hr/org", "Org chart", "org"],
     ["/hr/attendance", "Attendance", "attendance", regs],
     ["/hr/leave", "Leave", "approvals", leave],
+    ["/hr/reviews", "Reviews", "reviews"],
     ["/hr/payroll", "Payroll", "payroll"],
     ["/hr/announcements", "Announcements", "announcements"],
   ];

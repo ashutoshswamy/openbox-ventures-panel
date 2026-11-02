@@ -13,6 +13,7 @@ export default clerkMiddleware({
       "img-src": ["data:", "blob:", supabase], // attachments: /files redirects to signed storage URLs
       "media-src": ["self", "blob:", supabase],
       "frame-ancestors": ["none"], // no clickjacking
+      "worker-src": ["self"], // /sw.js (installable app)
       "object-src": ["none"],
       "base-uri": ["self"],
       "upgrade-insecure-requests": [],

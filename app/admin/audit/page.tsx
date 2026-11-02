@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { adminPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
+import { AutoForm } from "@/components/auto-form";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Audit log" };
@@ -42,16 +43,15 @@ export default async function Audit({ searchParams }: PageProps<"/admin/audit">)
     <>
       <PageHeader title="Audit log" sub="Changes to people, pay, leave and org settings. Bank values are never stored." />
       <div className="space-y-6">
-        <form className="flex flex-wrap items-center gap-2">
+        <AutoForm className="flex flex-wrap items-center gap-2">
           <select name="table" defaultValue={table ?? ""} className="input w-auto">
             <option value="">Everything</option>
             {Object.entries(TABLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
           {employee && <input type="hidden" name="employee" value={employee} />}
-          <button className="btn">Show</button>
           {(table || employee) && <Link href="/admin/audit" className="btn btn-ghost">Clear</Link>}
           {employee && <span className="text-sm text-muted">Showing {name(employee) ?? "one person"}</span>}
-        </form>
+        </AutoForm>
 
         <section className="card overflow-x-auto">
           {!rows.length ? <p className="text-sm text-muted">Nothing logged yet.</p> : (

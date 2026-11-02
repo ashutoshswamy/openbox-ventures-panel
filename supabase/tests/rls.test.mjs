@@ -201,6 +201,11 @@ assert.equal(await as("u_e2", "select name || ':' || unread from my_channels() w
 assert.equal(await as("u_mgr", `select count(*) from messages where channel_id = '${dm}'`), "0", "non-members can't read");
 assert.match(await err("u_mgr", `insert into messages(channel_id, sender_id, body) values ('${dm}', (select id from employees where email = 'm@x.com'), 'x')`), /row-level security/);
 
+const mid = `(select id from messages where channel_id = '${dm}' limit 1)`;
+assert.equal(await err("u_e2", `insert into message_reactions(message_id, employee_id, emoji) values (${mid}, (select id from employees where email = 'e2@x.com'), '👍')`), "ok", "member reacts");
+assert.match(await err("u_mgr", `insert into message_reactions(message_id, employee_id, emoji) values (${mid}, (select id from employees where email = 'm@x.com'), '👍')`), /row-level security/, "non-member can't react");
+assert.equal(await as("u_mgr", "select count(*) from message_reactions"), "0", "non-members can't read reactions");
+
 // ── no chatting with admins ──
 await db.exec("reset role; update employees set role = 'admin' where email = 'a@x.com'");
 const adminId = (await db.query("select id from employees where email = 'a@x.com'")).rows[0].id;
@@ -519,3 +524,78 @@ assert.equal(await err("u_hr", `insert into channel_members(channel_id, employee
 assert.match(await err("u_hr", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${adminId}')`), /row-level security/, "not admins");
 assert.match(await err("u_e2", `insert into channel_members(channel_id, employee_id) values ('${grp}', '${mgrId}')`), /row-level security|duplicate/, "plain employees can't");
 console.log("chat + employee code + admin chat checks passed");
+
+// ── work reports + performance reviews ──
+const mumbaiId = "00000000-0000-0000-0000-00000000000b";
+await db.exec(`reset role; delete from attendance; delete from holidays;
+  update offices set report_daily = true, report_weekly = false, report_monthly = false, work_days = '{1,2,3,4,5}', lat = null where id = '${mumbaiId}';
+  insert into attendance(employee_id, date, mode, check_in_at) select id, current_date, 'wfh', now() - interval '1 hour' from employees where email = 'e2@x.com';`);
+assert.match(await err("u_e2", "select check_out()"), /daily report is required/, "report blocks check-out when the office needs one");
+assert.equal(await as("u_e2", "select count(*) from attendance where check_out_at is not null"), "0", "failed check-out leaves the shift open");
+assert.equal(await err("u_e2", "select check_out('Fixed the login bug')"), "ok");
+assert.equal(await as("u_e2", "select body from work_reports"), "Fixed the login bug");
+assert.equal(await as("u_e1", "select count(*) from work_reports"), "0", "other office: not visible");
+assert.equal(await as("u_admin", "select count(*) from work_reports"), "1", "admin reads all reports");
+assert.match(await err("u_e2", "insert into work_reports(employee_id, kind, period_start, period_end, body) select id, 'daily', current_date, current_date, 'x' from employees where email = 'e2@x.com'"), /row-level security|permission/, "no direct insert");
+// weekly is only due on the office's last working day of the week
+await db.exec(`reset role; update offices set report_weekly = true where id = '${mumbaiId}';`);
+const dueOn = async (d) => (await db.query(`select reports_due_on((select e from employees e where e.email = 'e2@x.com'), '${d}') as r`)).rows[0].r.join(",");
+await db.exec("reset role");
+assert.equal(await dueOn("2031-01-08"), "daily", "Wednesday: no weekly yet");
+assert.equal(await dueOn("2031-01-10"), "daily,weekly", "Friday: last working day of the week");
+await db.exec(`insert into holidays(date, name) values ('2031-01-10', 'x');`);
+assert.equal(await dueOn("2031-01-09"), "daily,weekly", "Thursday becomes last day when Friday is a holiday");
+
+// reviews
+await db.exec("reset role");
+const cycle = async (sub, office) => err(sub, `select start_review_cycle('H1', ${office ? `'${office}'` : "null"}, '2031-01-01', '2031-06-30')`);
+assert.match(await cycle("u_e1", "00000000-0000-0000-0000-00000000000a"), /Not allowed/, "employee can't open a cycle");
+assert.match(await cycle("u_hr", "00000000-0000-0000-0000-00000000000b"), /Not allowed/, "hr: own office only");
+assert.equal(await cycle("u_hr", "00000000-0000-0000-0000-00000000000a"), "ok");
+assert.equal(await as("u_e1", "select count(*) from reviews"), "1", "employee sees only their own review");
+const rv = await as("u_e1", "select id from reviews");
+assert.match(await err("u_mgr", `select submit_manager_review('${rv}', 4, 'Good')`), /self-assessment first/);
+assert.match(await err("u_e2", `select submit_self_review('${rv}', 4, 'x')`), /not found/, "can't fill someone else's self review");
+assert.equal(await err("u_e1", `select submit_self_review('${rv}', 5, 'Shipped a lot')`), "ok");
+assert.match(await err("u_hr", `select submit_manager_review('${rv}', 9, 'x')`), /check|violates/, "rating 1-5");
+assert.equal(await err("u_mgr", `select submit_manager_review('${rv}', 4, 'Solid half')`), "ok", "dept manager rates");
+assert.match(await err("u_e1", `select submit_self_review('${rv}', 1, 'redo')`), /not found/, "self review locked after manager rating");
+assert.equal(await as("u_e1", "select mgr_rating from reviews"), "4");
+console.log("work report + review checks passed");
+
+// ── presence ──
+await db.exec("reset role; delete from presence");
+assert.equal(await err("u_e1", "select presence_ping('tab-aaaa-1111', 'online')"), "ok");
+assert.equal(await err("u_e1", "select presence_ping('tab-aaaa-2222', 'idle')"), "ok");
+assert.equal(await err("u_e2", "select presence_ping('tab-bbbb-1111', 'idle')"), "ok");
+assert.match(await err("u_e2", "select presence_ping('tab-bbbb-2222', 'invisible')"), /check/, "no invisible");
+assert.equal(await as("u_mgr", "select string_agg(status, ',' order by status) from presence_list()"), "idle,online", "strongest tab wins; everyone sees everyone");
+assert.equal(await as("u_nobody", "select count(*) from presence_list()"), "0", "outsiders see nothing");
+assert.equal(await as("u_e1", "select count(*) from presence"), "ERR", "no direct table access");
+assert.equal(await as("u_nobody", "select presence_ping('tab-cccc-1111', 'online')"), "", "non-employee ping writes nothing");
+await db.exec("reset role");
+assert.equal((await db.query("select count(*) from presence where tab = 'tab-cccc-1111'")).rows[0].count, 0);
+assert.equal(await err("u_e1", "select presence_leave('tab-aaaa-2222')"), "ok");
+await db.exec("reset role; update presence set seen = now() - interval '3 minutes' where tab = 'tab-aaaa-1111'");
+assert.equal(await as("u_mgr", "select count(*) from presence_list() l join employees e on e.id = l.employee_id where e.email = 'e1@x.com'"), "0", "stale heartbeat = offline");
+// ping can't touch another person's tab
+assert.equal(await err("u_e2", "select presence_ping('tab-aaaa-1111', 'dnd')"), "ok");
+await db.exec("reset role");
+assert.equal((await db.query("select count(*) from presence p join employees e on e.id = p.employee_id where p.tab = 'tab-aaaa-1111' and e.email = 'e1@x.com' and p.status = 'online'")).rows[0].count, 1, "e1's row untouched");
+assert.equal(await as("u_e1", "select count(*) filter (where peer_id is null) from my_channels() where type = 'dm'"), "0", "every DM names its other person");
+assert.equal(await as("u_e1", "select count(*) from my_channels() where type <> 'dm' and peer_id is not null"), "0");
+console.log("presence checks passed");
+
+// ── report edge cases ──
+await db.exec(`reset role; delete from holidays; update offices set report_daily = true, report_weekly = true, report_monthly = true, work_days = '{1,2,3,4,5}' where id = '${mumbaiId}';`);
+assert.equal(await dueOn("2031-01-31"), "daily,weekly,monthly", "Fri 31 Jan: last working day of week and month");
+assert.equal(await dueOn("2031-01-30"), "daily", "Thu 30 Jan: Friday still to come");
+assert.equal(await dueOn("2031-02-28"), "daily,weekly,monthly", "month ends on a Friday in Feb 2031");
+await db.exec(`reset role; update offices set work_days = '{1,2,3,4,5,6,7}' where id = '${mumbaiId}';`);
+assert.equal(await dueOn("2031-01-10"), "daily", "7-day office: Friday is not the last day of the week");
+assert.equal(await dueOn("2031-01-12"), "daily,weekly", "Sunday closes the week");
+// the RPC the check-out button calls, for someone mid-shift
+await db.exec(`reset role; delete from attendance; insert into attendance(employee_id, date, mode, check_in_at) select id, current_date, 'wfh', now() - interval '1 hour' from employees where email = 'e2@x.com';`);
+assert.match(await as("u_e2", "select reports_due()::text"), /daily/);
+assert.equal(await as("u_e1", "select reports_due()::text"), "{}", "office without the switches on: nothing due");
+console.log("report edge cases passed");

@@ -4,6 +4,8 @@ import { pageMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, fmtTime } from "@/lib/util";
 import { Avatar } from "@/components/avatar";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/calendar";
 
 export const metadata = { title: "Call history" };
 
@@ -24,15 +26,18 @@ function duration(from: string, to: string) {
   return min < 1 ? "under a minute" : min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
 }
 
-export default async function Calls() {
+const SIZE = 15;
+
+export default async function Calls({ searchParams }: PageProps<"/chat/calls">) {
   await pageMe();
+  const { page, from, to } = pageOf((await searchParams).page, SIZE);
   const sb = db();
-  const [{ data: channels }, { data }] = await Promise.all([
+  const [{ data: channels }, { data, count }] = await Promise.all([
     sb.rpc("my_channels"),
     sb.from("calls")
-      .select("id, channel_id, started_at, ended_at, starter:employees!calls_started_by_fkey(full_name), people:call_participants(joined_at, last_seen_at, employee:employees(full_name, avatar_url))")
+      .select("id, channel_id, started_at, ended_at, starter:employees!calls_started_by_fkey(full_name), people:call_participants(joined_at, last_seen_at, employee:employees(full_name, avatar_url))", { count: "exact" })
       .order("started_at", { ascending: false })
-      .limit(100),
+      .range(from, to),
   ]);
   const names = new Map((channels as { id: string; name: string | null }[] | null)?.map((c) => [c.id, c.name ?? "Unnamed"]));
   const calls = ((data ?? []) as unknown as Call[]).map((c) => ({ ...c, end: endOf(c) }));
@@ -74,6 +79,7 @@ export default async function Calls() {
             </li>
           ))}
         </ul>
+        <Pager page={page} total={count ?? 0} size={SIZE} />
       </div>
     </div>
   );

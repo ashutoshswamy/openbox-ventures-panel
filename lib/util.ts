@@ -16,8 +16,8 @@ export function todayIn(tz = DEFAULT_TZ) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
 }
 
-export function fmtTime(iso: string | null | undefined, tz = DEFAULT_TZ) {
-  return iso ? new Date(iso).toLocaleTimeString("en-IN", { timeZone: tz, hour: "2-digit", minute: "2-digit" }) : "-";
+export function fmtTime(iso: string | null | undefined, tz: string | null = DEFAULT_TZ) {
+  return iso ? new Date(iso).toLocaleTimeString("en-IN", { timeZone: tz ?? DEFAULT_TZ, hour: "2-digit", minute: "2-digit" }) : "-";
 }
 
 export function fmtDate(d: string) {
@@ -83,3 +83,5 @@ export function splitPost(body: string): [title: string | null, text: string] {
   const i = body.indexOf("\n\n");
   return i > 0 ? [body.slice(0, i), body.slice(i + 2)] : [null, body];
 }
+
+export const RATINGS = ["", "Needs improvement", "Below expectations", "Meets expectations", "Exceeds expectations", "Outstanding"];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { Building2, ChevronRight, Globe, Hash, Megaphone, Pin, Users } from "lucide-react";
@@ -8,7 +8,7 @@ import { Avatar } from "@/components/avatar";
 
 export type Row = {
   id: string; type: "dm" | "group" | "department" | "office" | "global"; name: string | null; unread: number; announcements: boolean; avatar_url: string | null;
-  office_id: string | null; office_name: string | null;
+  office_id: string | null; office_name: string | null; peer_id?: string | null; // dm: the other person (presence dot)
 };
 export type Section = { title: string; rows: Row[]; nest?: boolean }; // nest: office row on top, its departments collapsed beneath
 
@@ -16,7 +16,7 @@ const Badge = ({ n }: { n: number }) => n > 0 ? <span className="min-w-5 rounded
 
 function Icon({ c }: { c: Row }) {
   if (c.announcements) return <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-fg"><Megaphone className="size-4" /></span>;
-  if (c.type === "dm") return <Avatar name={c.name ?? "?"} src={c.avatar_url} size="size-7 text-[11px]" />;
+  if (c.type === "dm") return <Avatar name={c.name ?? "?"} src={c.avatar_url} size="size-7 text-[11px]" userId={c.peer_id} />;
   return (
     <span className="grid size-7 place-items-center rounded-lg bg-surface-2 text-muted">
       {c.type === "department" ? <Users className="size-4" /> : c.type === "office" ? <Building2 className="size-4" /> : c.type === "global" ? <Globe className="size-4" /> : <Hash className="size-4" />}
@@ -24,21 +24,26 @@ function Icon({ c }: { c: Row }) {
   );
 }
 
+const pinSubs = new Set<() => void>();
+const subscribePins = (cb: () => void) => {
+  pinSubs.add(cb);
+  addEventListener("storage", cb); // other tabs
+  return () => { pinSubs.delete(cb); removeEventListener("storage", cb); };
+};
+const readPins = (key: string) => { try { return localStorage.getItem(key) ?? "[]"; } catch { return "[]"; } };
+
 // Pins live in this browser (localStorage), not the database.
 // ponytail: per-device pins; add a pinned_chats table if they should follow people across devices.
 export function ChatList({ sections, meId }: { sections: Section[]; meId: string }) {
   const active = useSelectedLayoutSegment();
   const key = `pinned-chats:${meId}`;
-  const [pins, setPins] = useState<string[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    try { setPins(JSON.parse(localStorage.getItem(key) ?? "[]")); } catch {}
-  }, [key]);
+  const raw = useSyncExternalStore(subscribePins, () => readPins(key), () => "[]");
+  const pins = useMemo<string[]>(() => { try { return JSON.parse(raw); } catch { return []; } }, [raw]);
   const toggle = (id: string) => {
     const next = pins.includes(id) ? pins.filter((p) => p !== id) : [...pins, id];
-    setPins(next);
     try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+    pinSubs.forEach((f) => f()); // same tab: the storage event only fires in other tabs
   };
 
   const label = (c: Row) => c.name ?? "Unnamed";

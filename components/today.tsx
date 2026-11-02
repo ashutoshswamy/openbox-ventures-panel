@@ -1,11 +1,11 @@
 import { Building2, House, TriangleAlert } from "lucide-react";
 import { db } from "@/lib/supabase";
 import { DEFAULT_TZ } from "@/lib/util";
-import { CheckIn } from "./check-in";
+import { CheckIn, type ReportKind } from "./check-in";
 import { Workday } from "./workday";
 
 // Today's attendance: live workday clock + check-in/out.
-export async function Today({ employeeId, officeId }: { employeeId: string; officeId: string | null }) {
+export async function Today({ officeId }: { officeId: string | null }) {
   const sb = db();
   const [{ data: shift }, { data: office }] = await Promise.all([
     sb.rpc("my_shift"),
@@ -14,6 +14,7 @@ export async function Today({ employeeId, officeId }: { employeeId: string; offi
   // shift spans midnight (e.g. 17:30-02:30), so look it up by check-in time, not calendar date
   const { data: a } = shift?.id ? await sb.from("attendance_report").select("*").eq("id", shift.id).maybeSingle() : { data: null };
   const status = !a ? "none" : a.check_out_at ? "out" : "in";
+  const due: ReportKind[] = status === "in" ? ((await sb.rpc("reports_due")).data ?? []) : [];
   const tz = office?.timezone ?? DEFAULT_TZ;
   const day = new Date().toLocaleDateString("en-IN", { timeZone: tz, weekday: "long", day: "numeric", month: "long" });
 
@@ -39,7 +40,7 @@ export async function Today({ employeeId, officeId }: { employeeId: string; offi
           checkIn={a?.check_in_at}
           checkOut={a?.check_out_at}
         />
-        <CheckIn status={status} />
+        <CheckIn status={status} due={due} />
       </div>
     </section>
   );

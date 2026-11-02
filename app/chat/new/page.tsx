@@ -39,7 +39,7 @@ export default async function NewChat() {
                 {people?.map((p) => (
                   <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2.5 py-2 text-sm font-normal transition-colors hover:bg-surface-2 has-checked:bg-primary-soft">
                     <input type="checkbox" name="members" value={p.id} className="size-4 accent-primary" />
-                    <Avatar name={p.full_name} src={p.avatar_url} size="size-7 text-[11px]" />
+                    <Avatar name={p.full_name} src={p.avatar_url} size="size-7 text-[11px]" userId={p.id} />
                     {p.full_name}
                   </label>
                 ))}

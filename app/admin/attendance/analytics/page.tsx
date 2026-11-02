@@ -4,6 +4,7 @@ import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { workingDays } from "@/lib/payroll";
 import { todayIn } from "@/lib/util";
+import { AutoForm } from "@/components/auto-form";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Attendance analytics" };
@@ -102,7 +103,7 @@ export default async function Analytics({ searchParams }: PageProps<"/admin/atte
         <Link href={`${base}/attendance`} className="btn btn-ghost"><ArrowLeft /> Attendance</Link>
       </PageHeader>
       <div className="space-y-6">
-        <form className="flex flex-wrap items-center gap-2">
+        <AutoForm className="flex flex-wrap items-center gap-2">
           <input type="month" name="month" defaultValue={month} max={today.slice(0, 7)} className="input w-auto" />
           {me.role === "admin" && (
             <select name="office" defaultValue={office ?? ""} className="input w-auto">
@@ -110,8 +111,7 @@ export default async function Analytics({ searchParams }: PageProps<"/admin/atte
               {offices?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           )}
-          <button className="btn">Show</button>
-        </form>
+        </AutoForm>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {tiles.map(([k, v, hint]) => (

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { LEAVE_TONE, fmtDate } from "@/lib/util";
+import { LEAVE_TONE, fmtDate, todayIn } from "@/lib/util";
+import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
+import { MonthCalendar, type CalCell, type CalLine } from "@/components/month-calendar";
+import { Pager } from "@/components/pager";
 import { CalendarCheck2, CalendarRange, Check, FileText, History, Settings2, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
@@ -22,17 +25,39 @@ const sel = "*, employee:employees!leave_requests_employee_id_fkey(full_name, av
 
 const dates = (r: Req) => `${fmtDate(r.start_date)}${r.end_date !== r.start_date ? ` - ${fmtDate(r.end_date)}` : ""}${r.half_day ? " (half)" : ""}`;
 
-export default async function AdminLeave() {
+const SIZE = 15;
+
+export default async function AdminLeave({ searchParams }: PageProps<"/admin/leave">) {
   const me = await staffPage();
+  const sp = await searchParams;
+  const today = todayIn();
+  const month = validMonth(sp.month, today.slice(0, 7));
+  const { from, to } = monthRange(month);
+  const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const sb = db();
   const year = `${new Date().getFullYear()}-01-01`;
-  const [{ data: pending }, { data: recent }, { data: balances }, { data: heads }, { data: taken }] = await Promise.all([
+  const [{ data: pending }, { data: recent, count }, { data: balances }, { data: heads }, { data: taken }, { data: monthLeaves }, { data: monthHols }] = await Promise.all([
     sb.from("leave_requests").select(sel).in("status", ["pending", "manager_approved"]).neq("employee_id", me.id).order("start_date"),
-    sb.from("leave_requests").select(sel).not("status", "in", "(pending,manager_approved)").order("created_at", { ascending: false }).limit(30),
+    sb.from("leave_requests").select(sel, { count: "exact" }).not("status", "in", "(pending,manager_approved)").order("created_at", { ascending: false }).range(r0, r1),
     sb.from("leave_balances").select("employee_id, leave_type_id, balance"),
     sb.from("employees").select("id, role, office_id, department_id").in("role", ["manager", "branch_head"]).eq("active", true),
     sb.from("leave_requests").select("employee_id, days").eq("status", "approved").gte("start_date", year),
+    sb.from("leave_requests").select("employee_id, start_date, end_date, half_day, status, employee:employees!leave_requests_employee_id_fkey(full_name)").in("status", ["approved", "pending", "manager_approved"]).lte("start_date", to).gte("end_date", from),
+    sb.from("holidays").select("date, name").gte("date", from).lte("date", to),
   ]);
+
+  // who is away on each day (this panel's people only: RLS)
+  const cells: Record<string, CalCell> = {};
+  for (const d of eachDay(from, to)) {
+    const lines: CalLine[] = [
+      ...(monthHols ?? []).filter((h) => h.date === d).map((h) => ({ text: h.name, tone: "blue" as const })),
+      ...(monthLeaves ?? []).filter((l) => daysWithin(l.start_date, l.end_date, from, to).includes(d)).map((l) => ({
+        text: `${(l.employee as { full_name?: string } | null)?.full_name ?? "?"}${l.half_day ? " (half)" : ""}`,
+        tone: (l.status === "approved" ? "amber" : "muted") as "amber" | "muted",
+      })),
+    ];
+    cells[d] = { lines, off: isoDow(d) > 5 };
+  }
   // someone can give step 1: branch head of the office, or (employee leave) their department manager
   const hasFirst = (r: Req) => r.employee?.role !== "branch_head" && !!heads?.some((h) => h.id !== r.employee_id && h.office_id === r.employee?.office_id
     && (h.role === "branch_head" || (h.role === "manager" && r.employee?.role === "employee" && h.department_id === r.employee?.department_id)));
@@ -103,6 +128,11 @@ export default async function AdminLeave() {
           {!pending?.length && <p className="card empty"><CalendarCheck2 /> You&apos;re all caught up. No requests to review.</p>}
         </section>
 
+        <section className="card">
+          <h2 className="h2"><CalendarRange /> Who is away</h2>
+          <MonthCalendar month={month} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Awaiting approval"], ["blue", "Holiday"]]} />
+        </section>
+
         <section className="card overflow-x-auto">
           <h2 className="h2"><History /> Recent decisions</h2>
           <table className="table">
@@ -118,6 +148,7 @@ export default async function AdminLeave() {
             </tbody>
           </table>
           {!recent?.length && <p className="empty"><History /> No decisions yet.</p>}
+          <Pager page={page} total={count ?? 0} size={SIZE} />
         </section>
       </div>
     </>

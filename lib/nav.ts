@@ -15,6 +15,7 @@ export function employeeNav(me: Assigned) {
     ["/chat", "Chat", "chat"],
     ["/directory", "Directory", "directory"],
     ["/org", "Org chart", "org"],
+    ["/reviews", "Reviews", "reviews"],
     ["/payslips", "Payslips", "payroll"],
     ["/profile", "My details", "profile"],
     ["/support", "Report an issue", "support"],
@@ -38,6 +39,8 @@ export async function adminNav(me: Assigned) {
     ...(admin ? ([["/admin/offices", "Offices", "offices"], ["/admin/departments", "Departments", "departments"]] as NavLink[]) : []),
     ["/admin/attendance", "Attendance", "attendance", pending.regularizations],
     ["/admin/leave", "Leave", "approvals", pending.leave],
+    ["/admin/reports", "Work reports", "reports"],
+    ["/admin/reviews", "Reviews", "reviews"],
     ["/admin/announcements", "Announcements", "announcements"],
   ];
   if (admin) {
