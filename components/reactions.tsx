@@ -26,7 +26,7 @@ function Full({ onPick }: { onPick: (e: string) => void }) {
 type R = { emoji: string; employee_id: string };
 
 // Reaction chips under a bubble + a picker button. Click a chip or emoji to toggle mine; server refresh (live) confirms.
-export function Reactions({ id, reactions, meId, mine, canReact }: { id: string; reactions: R[]; meId: string; mine: boolean; canReact: boolean }) {
+export function Reactions({ id, channelId, reactions, meId, mine, canReact }: { id: string; channelId: string; reactions: R[]; meId: string; mine: boolean; canReact: boolean }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(false);
   const [, start] = useTransition();
@@ -35,7 +35,7 @@ export function Reactions({ id, reactions, meId, mine, canReact }: { id: string;
   const go = (e: string) => {
     setOpen(false);
     setFull(false);
-    start(async () => { toggle(e); await react(id, e); });
+    start(async () => { toggle(e); await react(id, e, channelId); });
   };
   const counts = [...new Set(list.map((r) => r.emoji))].map((e) => ({ e, n: list.filter((r) => r.emoji === e).length, me: list.some((r) => r.emoji === e && r.employee_id === meId) })).filter((c) => c.n);
   return (
@@ -43,8 +43,8 @@ export function Reactions({ id, reactions, meId, mine, canReact }: { id: string;
       {counts.length > 0 && (
         <div className={`-mt-1.5 flex flex-wrap gap-1 ${mine ? "justify-end pr-2" : "pl-2"}`}>
           {counts.map((c) => (
-            <button key={c.e} type="button" disabled={!canReact} onClick={() => go(c.e)} aria-pressed={c.me} aria-label={`${c.e} ${c.n}`}
-              className={`rounded-full border px-1.5 py-0.5 text-xs leading-none ${c.me ? "border-primary bg-primary/10" : "border-line bg-surface"}`}>
+            <button key={c.e} type="button" disabled={!canReact} onClick={() => go(c.e)} aria-pressed={c.me} aria-label={`${c.e} ${c.n}`} title={c.me ? "Click to remove your reaction" : "Click to react too"}
+              className={`cursor-pointer rounded-full border px-1.5 py-0.5 text-xs leading-none transition-colors ${c.me ? "border-primary bg-primary/10 hover:bg-red-soft" : "border-line bg-surface hover:bg-surface-2"}`}>
               {c.e} {c.n > 1 && <span className="tabular-nums">{c.n}</span>}
             </button>
           ))}
@@ -58,7 +58,7 @@ export function Reactions({ id, reactions, meId, mine, canReact }: { id: string;
           {open && full && <span className={`absolute top-full z-10 mt-1 ${mine ? "left-0" : "right-0"}`}><Full onPick={go} /></span>}
           {open && !full && (
             <span role="menu" className={`absolute top-full z-10 mt-1 flex gap-0.5 rounded-full border border-line bg-surface p-1 shadow-lg ${mine ? "left-0" : "right-0"}`}>
-              {EMOJI.map((e) => <button key={e} type="button" role="menuitem" onClick={() => go(e)} className="rounded-full px-1.5 py-1 text-base hover:bg-surface-2">{e}</button>)}
+              {EMOJI.map((e) => <button key={e} type="button" role="menuitemcheckbox" onClick={() => go(e)} aria-checked={list.some((r) => r.emoji === e && r.employee_id === meId)} className={`rounded-full px-1.5 py-1 text-base hover:bg-surface-2 ${list.some((r) => r.emoji === e && r.employee_id === meId) ? "bg-primary/10" : ""}`}>{e}</button>)}
               <button type="button" role="menuitem" onClick={() => setFull(true)} aria-label="More emoji" className="rounded-full px-1.5 py-1 hover:bg-surface-2"><Plus className="size-4" /></button>
             </span>
           )}

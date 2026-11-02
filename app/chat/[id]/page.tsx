@@ -227,7 +227,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
                   <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
                 </div>
-                <Reactions id={m.id} reactions={m.reactions ?? []} meId={me.id} mine={mine} canReact={!viewOnly} />
+                <Reactions id={m.id} channelId={id} reactions={m.reactions ?? []} meId={me.id} mine={mine} canReact={!viewOnly} />
               </div>
               <ReplyButton id={m.id} who={mine ? "You" : who} text={snippet(m)} />
             </li>

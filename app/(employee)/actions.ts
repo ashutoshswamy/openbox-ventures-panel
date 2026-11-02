@@ -116,13 +116,14 @@ export async function sendMessage(fd: FormData) {
 }
 
 // Toggle my reaction: RLS limits it to chats I'm in.
-export async function react(messageId: string, emoji: string) {
+export async function react(messageId: string, emoji: string, channelId: string) {
   const me = await requireMe();
   const sb = db();
   const row = { message_id: messageId, employee_id: me.id, emoji };
   const { data } = await sb.from("message_reactions").select("emoji").match(row).maybeSingle();
   const { error } = data ? await sb.from("message_reactions").delete().match(row) : await sb.from("message_reactions").insert(row);
   if (error) return error.message;
+  revalidatePath(`/chat/${channelId}`); // else the optimistic chip vanishes until the next realtime refresh
 }
 
 export type Bucket = "attachments" | "leave-docs";
