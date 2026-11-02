@@ -1,4 +1,4 @@
-import { CalendarClock, Circle, CircleCheck, ListTodo, Plus, Send, Trash2, UserRoundPlus } from "lucide-react";
+import { Circle, CircleCheck, ListTodo, Plus, Send, Trash2 } from "lucide-react";
 import type { Me } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
@@ -13,45 +13,39 @@ type Todo = {
 };
 const cols = "id, owner_id, title, due_on, done_at, assigned_by, assigner:employees!todos_assigned_by_fkey(full_name), owner:employees!todos_owner_id_fkey(full_name, avatar_url)";
 
+const dueLabel = (d: string, today: string) => {
+  if (d === today) return "Today";
+  if (d === new Date(Date.parse(today) + 864e5).toISOString().slice(0, 10)) return "Tomorrow";
+  return fmtDate(d);
+};
+
 function Row({ t, showOwner }: { t: Todo; showOwner?: boolean }) {
   const today = todayIn();
-  const overdue = !t.done_at && t.due_on && t.due_on < today;
+  const overdue = !t.done_at && !!t.due_on && t.due_on < today;
   const canDelete = !t.assigned_by || t.assigned_by === t.owner_id || showOwner;
   return (
-    <li className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-surface-2/70">
+    <li className="group flex items-center gap-3 py-2.5">
       <ActionForm action={toggleTodo} keep>
         <input type="hidden" name="id" value={t.id} />
-        <button name="done" value={t.done_at ? "0" : "1"} title={t.done_at ? "Mark not done" : "Mark done"} className="grid size-6 cursor-pointer place-items-center rounded-full text-muted transition hover:text-text">
+        <button name="done" value={t.done_at ? "0" : "1"} title={t.done_at ? "Mark not done" : "Mark done"} aria-label={`${t.done_at ? "Reopen" : "Complete"}: ${t.title}`} className="grid size-6 cursor-pointer place-items-center rounded-full text-muted transition-colors hover:text-text">
           {t.done_at ? <CircleCheck className="size-5 text-green" /> : <Circle className="size-5" />}
         </button>
       </ActionForm>
-      {showOwner && t.owner && <Avatar name={t.owner.full_name} src={t.owner.avatar_url} size="size-7" />}
+      {showOwner && t.owner && <Avatar name={t.owner.full_name} src={t.owner.avatar_url} size="size-7 text-[11px]" />}
       <div className="min-w-0 flex-1">
-        <p className={`text-sm break-words ${t.done_at ? "text-muted line-through" : "font-medium"}`}>{t.title}</p>
+        <p className={`text-[15px] leading-snug break-words ${t.done_at ? "text-muted line-through" : ""}`}>{t.title}</p>
         {(showOwner || t.assigner) && <p className="text-xs text-muted">{showOwner ? t.owner?.full_name : `From ${t.assigner!.full_name}`}</p>}
       </div>
       {t.due_on && !t.done_at && (
-        <span className={`badge ${overdue ? "badge-red" : t.due_on === today ? "badge-amber" : ""}`}><CalendarClock /> {t.due_on === today ? "Today" : fmtDate(t.due_on)}</span>
+        <span className={`shrink-0 text-xs tabular-nums ${overdue ? "font-medium text-red" : t.due_on === today ? "font-medium text-amber" : "text-muted"}`}>{dueLabel(t.due_on, today)}</span>
       )}
       {canDelete && (
         <ActionForm action={deleteTodo} confirm={t.assigned_by ? "Withdraw this task?" : undefined}>
           <input type="hidden" name="id" value={t.id} />
-          <button className="btn btn-ghost btn-icon btn-danger h-7 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100" title="Delete"><Trash2 /></button>
+          <button className="btn btn-ghost btn-icon btn-danger h-7 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100" title="Delete" aria-label={`Delete: ${t.title}`}><Trash2 /></button>
         </ActionForm>
       )}
     </li>
-  );
-}
-
-function Progress({ todos }: { todos: Todo[] }) {
-  const done = todos.filter((t) => t.done_at).length;
-  const pct = todos.length ? Math.round((done / todos.length) * 100) : 0;
-  if (!todos.length) return null;
-  return (
-    <div className="mb-5">
-      <div className="mb-1.5 flex items-baseline justify-between text-xs text-muted tabular-nums"><span>{done} of {todos.length} done</span><span>{pct}%</span></div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full rounded-full bg-green transition-[width]" style={{ width: `${pct}%` }} /></div>
-    </div>
   );
 }
 
@@ -61,29 +55,28 @@ function List({ todos, showOwner, empty }: { todos: Todo[]; showOwner?: boolean;
   const done = todos.filter((t) => t.done_at);
   const groups = [
     { label: "Overdue", tone: "text-red", items: open.filter((t) => t.due_on && t.due_on < today) },
-    { label: "Today", tone: "text-amber", items: open.filter((t) => t.due_on === today) },
-    { label: "Upcoming", tone: "text-muted", items: open.filter((t) => t.due_on && t.due_on > today) },
-    { label: "No date", tone: "text-muted", items: open.filter((t) => !t.due_on) },
+    { label: "Today", tone: "", items: open.filter((t) => t.due_on === today) },
+    { label: "Upcoming", tone: "", items: open.filter((t) => t.due_on && t.due_on > today) },
+    { label: "Whenever", tone: "", items: open.filter((t) => !t.due_on) },
   ].filter((g) => g.items.length);
   return (
     <>
-      <Progress todos={todos} />
       {groups.length ? (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {groups.map((g) => (
-            <div key={g.label}>
-              <h3 className={`mb-1 px-2 text-xs font-semibold tracking-wide uppercase ${g.tone}`}>{g.label} <span className="font-normal opacity-70">{g.items.length}</span></h3>
-              <ul>{g.items.map((t) => <Row key={t.id} t={t} showOwner={showOwner} />)}</ul>
-            </div>
+            <section key={g.label}>
+              <h3 className={`mb-1 flex items-baseline gap-2 border-b border-line pb-2 text-sm font-semibold ${g.tone}`}>{g.label}<span className="font-normal text-muted tabular-nums">{g.items.length}</span></h3>
+              <ul className="divide-y divide-line/60">{g.items.map((t) => <Row key={t.id} t={t} showOwner={showOwner} />)}</ul>
+            </section>
           ))}
         </div>
       ) : (
         <p className="empty"><ListTodo /> {empty}</p>
       )}
       {!!done.length && (
-        <details className="mt-4 border-t border-line pt-3">
-          <summary className="cursor-pointer px-2 py-1 text-sm text-muted hover:text-text">Done ({done.length})</summary>
-          <ul className="mt-1">{done.map((t) => <Row key={t.id} t={t} showOwner={showOwner} />)}</ul>
+        <details className="mt-6">
+          <summary className="cursor-pointer py-1 text-sm text-muted hover:text-text">Completed ({done.length})</summary>
+          <ul className="mt-1 divide-y divide-line/60">{done.map((t) => <Row key={t.id} t={t} showOwner={showOwner} />)}</ul>
         </details>
       )}
     </>
@@ -108,29 +101,32 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
       : null,
   ]);
 
-  const dueField = (
-    <label className="field sm:w-40">Due<input type="date" name="due_on" min={todayIn()} className="input" /></label>
-  );
+  const list = (mine ?? []) as unknown as Todo[];
+  const today = todayIn();
+  const openCount = list.filter((t) => !t.done_at).length;
+  const lateCount = list.filter((t) => !t.done_at && t.due_on && t.due_on < today).length;
+  const sub = !list.length ? "Nothing yet" : !openCount ? "All done" : `${openCount} open${lateCount ? `, ${lateCount} overdue` : ""}`;
 
   return (
     <>
-      <PageHeader title="To-do" sub={assign ? "Your own list, plus tasks you hand out to your team." : "Your own list, plus tasks assigned to you."} />
-      <div className={`grid gap-6 ${assign ? "lg:grid-cols-2" : "max-w-2xl"}`}>
-        <section className="card h-fit">
-          <h2 className="h2"><ListTodo /> My list</h2>
-          <ActionForm action={addTodo} className="mb-3 flex flex-wrap items-end gap-2 sm:flex-nowrap">
-            <label className="field flex-1">Task<input name="title" required maxLength={300} placeholder="What needs doing?" className="input" /></label>
-            {dueField}
-            <button className="btn btn-primary"><Plus /> Add</button>
+      <PageHeader title="To-do" sub={sub} />
+      <div className={assign ? "grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_22rem]" : "max-w-2xl"}>
+        <div>
+          <ActionForm action={addTodo} className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 pl-4 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10 sm:flex-nowrap">
+            <label className="sr-only" htmlFor="new-task">New task</label>
+            <input id="new-task" name="title" required maxLength={300} autoComplete="off" placeholder="Add a task" className="h-10 min-w-0 flex-1 basis-full bg-transparent text-[15px] outline-none placeholder:text-muted sm:basis-auto" />
+            <label className="sr-only" htmlFor="new-due">Due date</label>
+            <input id="new-due" type="date" name="due_on" min={today} className="input h-10 w-auto min-w-0 border-transparent bg-surface-2 text-muted" />
+            <button className="btn btn-primary h-10"><Plus /> Add</button>
           </ActionForm>
-          <List todos={(mine ?? []) as unknown as Todo[]} empty="Nothing on your list." />
-        </section>
+          <List todos={list} empty="Nothing on your list. Add the first task above." />
+        </div>
 
         {assign && (
-          <section className="space-y-6">
-            <div className="card">
-              <h2 className="h2"><UserRoundPlus /> Assign a task</h2>
-              <ActionForm action={addTodo} success="Task assigned" className="space-y-3">
+          <aside className="space-y-10 lg:sticky lg:top-6">
+            <section>
+              <h2 className="h2">Assign a task</h2>
+              <ActionForm action={addTodo} success="Task assigned" className="space-y-4 rounded-2xl border border-line bg-surface p-5">
                 <label className="field">Assign to
                   <select name="owner_id" required className="input" defaultValue="">
                     <option value="" disabled>Pick a person</option>
@@ -138,17 +134,17 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
                   </select>
                 </label>
                 <label className="field">Task<input name="title" required maxLength={300} placeholder="What should they do?" className="input" /></label>
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  {dueField}
+                <div className="flex items-end justify-between gap-3">
+                  <label className="field flex-1">Due<input type="date" name="due_on" min={today} className="input" /></label>
                   <button className="btn btn-primary"><Send /> Assign</button>
                 </div>
               </ActionForm>
-            </div>
-            <div className="card">
-              <h2 className="h2"><CalendarClock /> Assigned by me</h2>
-              <List todos={(assigned?.data ?? []) as unknown as Todo[]} showOwner empty="No open tasks handed out." />
-            </div>
-          </section>
+            </section>
+            <section>
+              <h2 className="h2">Assigned by me</h2>
+              <List todos={(assigned?.data ?? []) as unknown as Todo[]} showOwner empty="No tasks handed out." />
+            </section>
+          </aside>
         )}
       </div>
     </>
