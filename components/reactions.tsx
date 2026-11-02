@@ -13,6 +13,7 @@ function Full({ onPick }: { onPick: (e: string) => void }) {
     const pick = (ev: Event) => onPick((ev as CustomEvent).detail.unicode);
     import("emoji-picker-element").then(() => {
       el = document.createElement("emoji-picker");
+      el.setAttribute("data-source", "/emoji-en.json"); // self-hosted: the CSP blocks the default CDN
       el.className = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
       el.addEventListener("emoji-click", pick);
       ref.current?.append(el);
