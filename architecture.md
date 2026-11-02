@@ -66,7 +66,7 @@ flowchart TD
 | `/attendance` | History, monthly stats, **regularization** requests |
 | `/leave` | Balances, apply, cancel, add/replace document |
 | `/chat` | DMs, groups, department channels, Announcements |
-| `/directory`, `/org` | Colleagues, org chart |
+| `/directory` | Colleagues |
 | `/payslips` | Own payslips from approved salary sheets; `/payslip/[id]` prints / saves as PDF (also opened by HR/admin from the sheet) |
 | `/profile` | Personal details, bank details, my salary |
 | `/support` | Report an issue to admins |
@@ -134,7 +134,7 @@ Admins are not chat members (use Report an issue). Video call = Jitsi room named
 
 ## 4. Manager panel (`/admin`, role `manager`)
 
-Overview · To-do · Employees (own office, read-only) · Org chart · Attendance (fix entries, see regularizations as "Waiting for HR") · Leave (first-step approval) · Announcements.
+Overview · To-do · Employees (own office, read-only) · Attendance (fix entries, see regularizations as "Waiting for HR") · Leave (first-step approval) · Announcements.
 
 ```mermaid
 flowchart LR
@@ -156,7 +156,7 @@ flowchart LR
 | `/hr/leave` | Final approval, with balance, leave taken this year, manager's note |
 | `/hr/attendance` | Day view + approve/reject regularizations; `/analytics`: monthly rate, late, WFH, absences by day / department / person (also under `/admin/attendance`) |
 | `/hr/payroll` | Salaries, increments, bank details, build & submit salary sheets |
-| `/hr/employees`, `/hr/org` | Office employees (All / Active / Deactivated), org chart |
+| `/hr/employees` | Office employees (All / Active / Deactivated) |
 | `/hr/todos`, `/hr/announcements` | Assign tasks, post announcements |
 
 Nav badges (Leave, Attendance) come from `lib/pending.ts → pendingCounts()`.
@@ -220,10 +220,6 @@ sequenceDiagram
 ```
 
 Deactivate = `employees.active = false` (RLS cuts access) + Clerk ban.
-
-### Org chart
-
-`employees.reports_to` (set by admin) → tree in `components/org-chart.tsx`. A trigger blocks cycles; roots = people without an active manager; no reporting lines at all → grouped by department.
 
 ## 7. Automations
 

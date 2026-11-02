@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, CalendarDays, ClipboardCheck, FileText, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, ScrollText, UserRound, Users, Wallet, Workflow,
+  Building2, CalendarDays, ClipboardCheck, FileText, CalendarCheck2, Clock3, Inbox, LayoutDashboard, ListTodo, LayoutGrid, LifeBuoy, Megaphone, MessagesSquare, Network, ScrollText, UserRound, Users, Wallet,
 } from "lucide-react";
 
 const icons = {
@@ -23,7 +23,6 @@ const icons = {
   profile: UserRound,
   todos: ListTodo,
   payroll: Wallet,
-  org: Workflow,
   audit: ScrollText,
   reviews: ClipboardCheck,
   reports: FileText,
