@@ -3,7 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
 import { fmtDate } from "@/lib/util";
-import { Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserPlus, Users, UserX } from "lucide-react";
+import { Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
@@ -164,6 +164,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const profileOf = (id: string) => (profiles as Profile[] | null)?.find((p) => p.employee_id === id);
   const roleOf = (e: Emp) => (users.data.find((u) => u.id === e.clerk_user_id)?.publicMetadata?.role as Role | undefined) ?? null;
   const name = (list: Opt[] | null, id: string | null) => list?.find((x) => x.id === id)?.name;
+  const detail = (e: Emp) => [e.designation, name(depts, e.department_id), name(offices, e.office_id)].filter(Boolean).join(" · ");
 
   const waiting = (emps ?? []).filter((e: Emp) => e.active && e.clerk_user_id && !roleOf(e)).length;
   const STATUS = {
@@ -175,15 +176,18 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   return (
     <>
       <PageHeader title="Employees" sub={`${total ?? 0} people${waiting ? ` · ${waiting} waiting for a role` : ""}`} />
-      <div className="max-w-5xl space-y-6">
+      <div className="space-y-5">
         {isAdmin && (
-          <details className="card group">
-            <summary className="flex cursor-pointer items-center gap-3 font-semibold">
-              <span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-fg"><UserPlus className="size-4" /></span>
-              Invite an employee
-              <ChevronDown className="ml-auto size-5 text-muted transition-transform group-open:rotate-180" />
+          <details className="card group p-0">
+            <summary className="flex cursor-pointer items-center gap-3 rounded-2xl px-5 py-4 transition-colors hover:bg-surface-2/60">
+              <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg"><UserPlus className="size-4" /></span>
+              <span className="leading-tight">
+                <span className="block font-semibold">Invite an employee</span>
+                <span className="block text-sm text-muted">Send an email invite and assign a role after they sign up.</span>
+              </span>
+              <ChevronDown className="ml-auto size-5 shrink-0 text-muted transition-transform group-open:rotate-180" />
             </summary>
-            <ActionForm action={inviteEmployee} className="mt-6 grid gap-4 border-t border-line pt-6 sm:grid-cols-2">
+            <ActionForm action={inviteEmployee} className="grid gap-4 border-t border-line px-5 py-5 sm:grid-cols-2">
               <Fields offices={offices ?? []} depts={depts ?? []} />
               <p className="text-xs text-muted sm:col-span-2">They get an email invitation. After signing up they wait on a &quot;no role yet&quot; screen until you assign a role here.</p>
               <div><button className="btn btn-primary"><Send /> Send invite</button></div>
@@ -191,19 +195,25 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
           </details>
         )}
 
-        <nav className="flex gap-2">
-          {([["all", "All"], ["active", "Active"], ["inactive", "Deactivated"]] as const).map(([k, label]) => (
-            <Link key={k} href={`?${new URLSearchParams({ ...(q ? { q: String(q) } : {}), status: k })}`} className={`btn ${status === k ? "btn-primary" : ""}`}>
-              {label} <span className="opacity-70">{counts[k]}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <AutoForm className="relative">
-          {status !== "all" && <input type="hidden" name="status" value={status} />}
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <input name="q" defaultValue={q as string} placeholder="Search by name" className="input pl-9" />
-        </AutoForm>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Filter by status" className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
+            {([["all", "All"], ["active", "Active"], ["inactive", "Deactivated"]] as const).map(([k, label]) => (
+              <Link
+                key={k}
+                href={`?${new URLSearchParams({ ...(q ? { q: String(q) } : {}), status: k })}`}
+                aria-current={status === k ? "page" : undefined}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-colors ${status === k ? "bg-surface font-medium text-text shadow-[0_1px_2px_rgb(24_24_27/0.08)]" : "text-muted hover:text-text"}`}
+              >
+                {label} <span className="text-xs tabular-nums opacity-70">{counts[k]}</span>
+              </Link>
+            ))}
+          </nav>
+          <AutoForm className="relative w-full sm:w-72">
+            {status !== "all" && <input type="hidden" name="status" value={status} />}
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
+            <input name="q" defaultValue={q as string} placeholder="Search by name" aria-label="Search by name" className="input pl-9" />
+          </AutoForm>
+        </div>
 
         <ul className="card divide-y divide-line p-0">
           {emps?.map((e: Emp) => {
@@ -213,15 +223,21 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
             return (
               <li key={e.id}>
                 <details className={`group ${e.active ? "" : "opacity-60"}`}>
-                  <summary className={`flex items-center gap-3 px-5 py-4 ${canEdit ? "cursor-pointer hover:bg-surface-2/50" : ""}`}>
-                    <Avatar name={e.full_name} src={e.avatar_url} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-x-2">
-                        <span className="font-semibold">{e.full_name}</span>
-                        <span className="truncate text-sm text-muted">{e.email}</span>
+                  <summary className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${canEdit ? "cursor-pointer hover:bg-surface-2/60" : ""}`}>
+                    <Avatar name={e.full_name} src={e.avatar_url} size="size-11" />
+                    <span className="min-w-0 flex-1 leading-snug md:flex-none md:basis-72">
+                      <span className="block truncate font-semibold">
+                        {e.full_name}
+                        {e.alias_name && <span className="ml-1.5 font-normal text-muted">({e.alias_name})</span>}
                       </span>
-                      <span className="block truncate text-sm text-muted">
-                        {[e.employee_code, e.alias_name && `"${e.alias_name}"`, e.designation, name(depts, e.department_id), name(offices, e.office_id)].filter(Boolean).join(" · ") || "No office or department"}
+                      <span className="block truncate text-sm text-muted">{e.email}</span>
+                      <span className="mt-0.5 block truncate text-xs text-muted md:hidden">{detail(e) || "No office or department"}</span>
+                    </span>
+                    <span className="hidden min-w-0 flex-1 leading-snug md:block">
+                      <span className="block truncate text-sm">{e.designation || <span className="text-muted">No designation</span>}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {[name(depts, e.department_id), name(offices, e.office_id)].filter(Boolean).join(" / ") || "No office or department"}
+                        {e.employee_code && <span className="tabular-nums"> · {e.employee_code}</span>}
                         {e.exit_date && ` · Exit ${fmtDate(e.exit_date)}`}
                       </span>
                     </span>
@@ -232,21 +248,24 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                     {canEdit && <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" />}
                   </summary>
                   {canEdit && (
-                    <div className="space-y-4 bg-surface-2/40 px-5 py-5">
+                    <div className="space-y-4 border-t border-line bg-surface-2/50 px-5 py-5">
                       {e.clerk_user_id && r !== "admin" && (
                         <section className="rounded-xl border border-line bg-surface p-4">
-                          <h3 className="eyebrow mb-3 flex items-center gap-1.5"><ClipboardList className="size-3.5" /> Personal details</h3>
+                          <h3 className="h2"><ClipboardList /> Personal details</h3>
                           <Details e={e} p={profileOf(e.id)} />
                         </section>
                       )}
                       {isAdmin && <>
+                      <section className="rounded-xl border border-line bg-surface p-4">
+                      <h3 className="h2"><UserCog /> Role and placement</h3>
                       <ActionForm action={updateEmployee} keep success="Saved" className="grid gap-4 sm:grid-cols-2">
                         <input type="hidden" name="id" value={e.id} />
                         <input type="hidden" name="old_role" value={r ?? ""} />
                         <Fields e={e} r={r} offices={offices ?? []} depts={depts ?? []} people={managers} />
                         <div className="sm:col-span-2"><button className="btn btn-primary"><Save /> Save changes</button></div>
                       </ActionForm>
-                      <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+                      </section>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         {!e.clerk_user_id && e.active && (
                           <ActionForm action={resendInvite}>
                             <input type="hidden" name="email" value={e.email} />
@@ -266,7 +285,13 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
               </li>
             );
           })}
-          {!emps?.length && <li className="empty"><Users /> No employees found.</li>}
+          {!emps?.length && (
+            <li className="empty py-12">
+              <Users />
+              {q || status !== "all" ? "No one matches these filters." : "No employees yet."}
+              {(q || status !== "all") && <Link href="?" className="btn mt-1">Clear filters</Link>}
+            </li>
+          )}
         </ul>
         <Pager page={page} total={total ?? 0} size={SIZE} />
       </div>

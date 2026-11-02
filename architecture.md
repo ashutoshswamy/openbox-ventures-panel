@@ -15,6 +15,7 @@ flowchart LR
   U -->|"signed upload URL"| ST[(Supabase Storage<br/>leave-docs, attachments)]
   U <-->|"Realtime postgres_changes"| S
   U -->|"new tab"| J[Jitsi Meet<br/>video calls]
+  U -->|"heartbeat ~1/min"| S
   V[Vercel Cron 03:00 UTC] -->|"Bearer CRON_SECRET"| R[/api/cron/reminders/]
   R --> S
 ```
@@ -25,7 +26,9 @@ flowchart LR
 | Who am I | `lib/me.ts` | `getMe()` links Clerk user → `employees` row; page guards `employeePage / staffPage / hrPage / adminPage`; action guards `requireMe / requireStaff / requireAdmin` (+ per-employee rate limit, `rateLimit()`) |
 | Data rules | `supabase/schema.sql` | RLS on every table; business rules in `security definer` functions (check-in geofence, leave balance, approvals, payroll) so they can't be bypassed via the API |
 | Live UI | `components/live-refresh.tsx` | Any change to a published table the user can read → `router.refresh()` |
-| Schema reset | `supabase/reset.sql` | Drops everything; then run `schema.sql` |
+| Schema reset | `supabase/reset.sql` | Drops everything; then run `schema.sql` (it already includes everything in `supabase/migrations/`; those files are for upgrading an existing database) |
+| Auth screens | `components/auth-frame.tsx` | Shared layout for `/sign-in` and `/sign-up` (animated backdrop on the left, flattened Clerk form on the right, `authAppearance`) |
+| Status | `app/status` | Public page probing database, storage, Clerk and Jitsi reachability / latency, cached 60 s |
 
 Access is checked twice: the TS guard (UX, redirects) and RLS / SQL functions (the real gate).
 
@@ -65,7 +68,8 @@ flowchart TD
 | `/todos` | Personal list + tasks assigned by managers/HR/admin |
 | `/attendance` | History, monthly stats, **regularization** requests |
 | `/leave` | Balances, apply, cancel, add/replace document |
-| `/chat` | DMs, groups, department channels, Announcements |
+| `/chat` | DMs, groups, department / office channels, company-wide General, Announcements; emoji reactions; online / idle / do-not-disturb dots; `/chat/calls` call history |
+| `/reviews` | Performance reviews: self-assessment, then the manager's rating and feedback |
 | `/directory` | Colleagues |
 | `/payslips` | Own payslips from approved salary sheets; `/payslip/[id]` prints / saves as PDF (also opened by HR/admin from the sheet) |
 | `/profile` | Personal details, bank details, my salary |
@@ -86,6 +90,8 @@ sequenceDiagram
   E->>UI: Check out
   UI->>DB: check_out()
 ```
+
+If the office switches on daily / weekly / monthly **work reports** (`offices.report_*`), the Today card asks for them at check-out and `check_out(p_daily, p_weekly, p_monthly)` files them in `work_reports` (one per employee, kind and period; the weekly one is due on the last working day of the week, the monthly one on the last of the month). Employees and their managers read them; `/admin/reports` lists them and lets managers, HR and admins compile an edited write-up (`compiled_reports`, private to the author and admin, export at `/admin/reports/[id]/export`).
 
 `attendance_report` view adds `late` (after `work_start + grace_min`), `early_leave`, `hours`.
 
@@ -130,11 +136,17 @@ flowchart LR
   DM & G & DC & AN --> RT[Realtime → live refresh]
 ```
 
-Admins are not chat members (use Report an issue). Video call = Jitsi room named after the channel id.
+Channel types: `dm`, `group`, `department`, `office` (one per office) and `global` (General, everyone posts). Admins can read and post in every non-DM chat and manage group chats at `/admin/chats`; they are not members of DMs, and reading someone else's DM needs a password re-entry (below).
+
+Video call = Jitsi room named after the channel id. `start_call()` is allowed for members (and admins in any non-DM chat), never in Announcements or other people's DMs; `call_ping()` heartbeats record who is in the call for `/chat/calls`.
+
+Presence: a browser tab calls `presence_ping()` about once a minute; status = strongest of the person's live tabs, offline after 2 minutes without a ping. Rows are written only for `me()`, so nobody can fake someone else's status.
+
+Reactions: `message_reactions`, one row per (message, person, emoji), toggled by the app.
 
 ## 4. Manager panel (`/admin`, role `manager`)
 
-Overview · To-do · Employees (own office, read-only) · Attendance (fix entries, see regularizations as "Waiting for HR") · Leave (first-step approval) · Announcements.
+Overview · To-do · Employees (own office, read-only) · Attendance (fix entries, see regularizations as "Waiting for HR") · Leave (first-step approval) · Work reports · Reviews (rate the team after their self-assessment) · Announcements.
 
 ```mermaid
 flowchart LR
@@ -157,6 +169,7 @@ flowchart LR
 | `/hr/attendance` | Day view + approve/reject regularizations; `/analytics`: monthly rate, late, WFH, absences by day / department / person (also under `/admin/attendance`) |
 | `/hr/payroll` | Salaries, increments, bank details, build & submit salary sheets |
 | `/hr/employees` | Office employees (All / Active / Deactivated) |
+| `/hr/reviews` | Open and close review cycles for the office, rate people |
 | `/hr/todos`, `/hr/announcements` | Assign tasks, post announcements |
 
 Nav badges (Leave, Attendance) come from `lib/pending.ts → pendingCounts()`.
@@ -192,9 +205,15 @@ stateDiagram-v2
 
 Salary and bank rows are visible to the employee, admin, and HR of the employee's office only — never managers or colleagues (`can_see_pay()`). CSV export: `/hr/payroll/[id]/export`.
 
+### Performance reviews
+
+Admin (any office) or HR / branch head (own office) opens a cycle with `start_review_cycle()`: one `reviews` row per active, non-admin person in scope. The employee self-assesses first (`submit_self_review()`, editable until rated); then whoever `manages()` them rates 1-5 with feedback (`submit_manager_review()`, nobody rates themselves). `close_review_cycle()` ends the cycle. Employees see their own rows at `/reviews`; managers at `/admin/reviews` or `/hr/reviews`.
+
 ## 6. Admin panel (`/admin`, role `admin`)
 
-Everything managers see, org-wide, plus: Offices (geofence, hours, work days) · Departments · Employees (invite, role, code, alias, company mobile, joined/exit date, reports to, deactivate) · Leave policy & holidays (incl. CSV import) · Payroll approval · Issues · Audit log (`/admin/audit`: trigger-written history of employees, salary, bank (values masked), payroll, leave, regularizations, org settings).
+Everything managers see, org-wide, plus: Offices (geofence, hours, work days, which work reports are on) · Departments · Employees (invite, role, code, alias, company mobile, joined/exit date, reports to, deactivate) · Leave policy & holidays (incl. CSV import) · Payroll approval · Group chats · Issues · Audit log (`/admin/audit`: trigger-written history of employees, salary, bank (values masked), payroll, leave, regularizations, org settings).
+
+Sensitive reads ask for the password again: bank details (10 min) and other people's DMs (15 min). `lib/reauth.ts` `unlocker()` sets an httpOnly cookie `<employee id>.<expiry>.<hmac>` signed with the Clerk secret (`lib/bank-unlock.ts`, `lib/dm-unlock.ts`).
 
 Every panel: **Cmd/Ctrl+K search** over the panel's pages, people, own chats and own to-dos (`app/search-actions.ts`, RLS-scoped).
 
@@ -270,12 +289,19 @@ erDiagram
   departments ||--o| channels : "department channel"
   employees ||--o{ todos : "owner / assigned_by"
   employees ||--o{ issues : reports
+  employees ||--o{ work_reports : files
+  employees ||--o{ compiled_reports : authors
+  review_cycles ||--o{ reviews : reviews
+  employees ||--o{ reviews : "reviewed"
+  channels ||--o{ calls : calls
+  calls ||--o{ call_participants : in_call
+  messages ||--o{ message_reactions : reactions
 ```
 
 ## 9. Security notes
 
 - Every table has RLS; writes for leave, regularizations and payroll only via `security definer` functions (direct `update` revoked).
-- `post_announcement`, `orphan_uploads`, `daily_reminders`, `hit_rate_limit` are not callable through the API.
+- `post_announcement`, `orphan_uploads`, `daily_reminders`, `hit_rate_limit` are not callable through the API. `presence` has no policies at all; only `presence_ping()` and its readers touch it.
 - Uploads: browser → signed URL (10 MB bucket cap, MIME allowlist: images, video, PDF, Office, text/CSV, zip; no HTML/SVG); a path is only accepted if it starts with your employee id. Downloads are forced except images/videos (`?view`).
 - Rate limit: `requireMe()` (every server action, `/files`, CSV exports) and the profile actions call `hit_rate_limit`: 120 per employee per minute, fixed window in `rate_limits`. Over the limit the action throws; `ActionForm` shows a "too many requests" message. IP-level limits: Vercel Firewall.
 - CSP (`proxy.ts`, Clerk `contentSecurityPolicy.strict`): scripts only with the per-request nonce (`'strict-dynamic'`), so injected markup can't run script; connections/images limited to self, Clerk and the Supabase project; `frame-ancestors 'none'`. Other headers (HSTS, nosniff, referrer, permissions) in `next.config.ts`.

@@ -28,7 +28,7 @@ export function AuthFrame({ children, title = "Sign in", hint = "Use your work a
       <Velaris className="hidden text-white lg:block">
         <section className="flex h-full flex-col p-14">
           <div className="flex items-center gap-3">
-            <Logo size={40} className="rounded-xl" />
+            <Logo size={44} className="rounded-xl" />
             <span className="text-base font-semibold tracking-tight">Open Box Ventures LLP</span>
           </div>
           <div className="my-auto max-w-xl">
