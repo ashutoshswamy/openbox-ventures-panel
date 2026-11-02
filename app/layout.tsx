@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import "./globals.css";
 
-// Geist = UI + data; Geist Mono only for code/CSV fields (font-mono). Variable fonts, so one file each.
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  axes: ["opsz"],
+});
 
 const description = "Attendance, leave, payroll, HR, chat and meetings for the Open Box Ventures LLP team.";
 
@@ -51,7 +53,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-IN"
-      className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning // data-theme is set by themeScript before React hydrates
     >
       <head>
@@ -70,7 +72,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               colorInput: "var(--surface)",
               colorInputForeground: "var(--text)",
               colorNeutral: "var(--text)",
-              fontFamily: "var(--font-geist)",
+              fontFamily: "var(--font-dm-sans)",
               borderRadius: "0.5rem",
             },
           }}
