@@ -50,7 +50,7 @@ export function StatusPicker({ compact }: { compact?: boolean }) {
         <Dot s={mine} className="size-2.5" />
         {!compact && LABEL[mine]}
       </summary>
-      <div className="absolute right-0 bottom-full z-30 mb-2 w-64 rounded-xl border border-line bg-surface p-1 shadow-lg max-lg:top-full max-lg:bottom-auto max-lg:mt-2 max-lg:mb-0">
+      <div className="absolute right-0 bottom-full z-30 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-surface p-1 shadow-lg lg:right-auto lg:left-0 max-lg:top-full max-lg:bottom-auto max-lg:mt-2 max-lg:mb-0">
         {OPTIONS.map(([s, hint]) => (
           <button
             key={s}

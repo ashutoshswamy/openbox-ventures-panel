@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BellRing, CalendarDays, Hourglass, Megaphone } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Hourglass, ListTodo, Megaphone, Palmtree } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, greeting, splitPost, todayIn } from "@/lib/util";
@@ -15,14 +15,16 @@ export default async function Dashboard() {
   const sb = db();
   const today = todayIn();
   const week = new Date(Date.parse(today) + 7 * 864e5).toISOString().slice(0, 10);
-  const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations] = await Promise.all([
+  const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations, { count: openTodos }] = await Promise.all([
     sb.from("leave_balances").select("leave_type_id, name, balance, entitled, used").eq("employee_id", me.id).order("name"),
     sb.from("messages").select("id, body, attachment_path, created_at, channel:channels!inner(announcements)").eq("channel.announcements", true).order("created_at", { ascending: false }).limit(4),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", me.id).eq("status", "pending"),
     sb.from("todos").select("id, title, due_on").eq("owner_id", me.id).is("done_at", null).lte("due_on", today).order("due_on"),
     sb.from("holidays").select("name, date, office_id").gte("date", today).lte("date", week).order("date"),
     todaysCelebrations(),
+    sb.from("todos").select("id", { count: "exact", head: true }).eq("owner_id", me.id).is("done_at", null),
   ]);
+  const daysLeft = (balances ?? []).reduce((n, b) => n + Number(b.balance), 0);
   const nextHoliday = holidays?.find((h) => !h.office_id || h.office_id === me.office_id);
   const reminders = [
     ...(due ?? []).map((t) => ({ key: t.id, href: "/todos", text: `${t.due_on! < today ? "Overdue" : "Due today"}: ${t.title}` })),
@@ -36,14 +38,30 @@ export default async function Dashboard() {
       <div className="space-y-6">
         <Today officeId={me.office_id} />
 
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[
+            { href: "/todos", icon: ListTodo, n: openTodos ?? 0, label: "open tasks", note: due?.length ? `${due.length} due or overdue` : "nothing due" , warn: !!due?.length },
+            { href: "/leave", icon: Palmtree, n: daysLeft, label: "leave days left", note: "across all types", warn: false },
+            { href: "/leave", icon: Hourglass, n: pending ?? 0, label: "requests pending", note: pending ? "waiting for approval" : "all caught up", warn: !!pending },
+          ].map(({ href, icon: Icon, n, label, note, warn }) => (
+            <Link key={label} href={href} className="card card-link group flex items-center gap-4 p-4">
+              <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${warn ? "bg-amber-soft text-amber" : "bg-primary-soft text-text"}`}><Icon className="size-5" /></span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="text-2xl font-semibold tabular-nums">{n}</span> <span className="text-sm">{label}</span>
+                <span className={`block text-xs ${warn ? "text-amber" : "text-muted"}`}>{note}</span>
+              </span>
+              <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ))}
+        </div>
+
         {reminders.length > 0 && (
-          <section className="card">
-            <h2 className="h2"><BellRing /> Reminders</h2>
-            <ul className="divide-y divide-line text-sm">
-              {reminders.map((r) => (
-                <li key={r.key} className="py-2 first:pt-0 last:pb-0">{r.href ? <Link href={r.href} className="hover:underline">{r.text}</Link> : r.text}</li>
-              ))}
-            </ul>
+          <section className="flex flex-wrap gap-2" aria-label="Reminders">
+            {reminders.map((r) => {
+              const cls = "inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-sm";
+              const body = <><BellRing className="size-3.5 text-amber" /> {r.text}</>;
+              return r.href ? <Link key={r.key} href={r.href} className={`${cls} transition hover:border-text/30`}>{body}</Link> : <span key={r.key} className={cls}>{body}</span>;
+            })}
           </section>
         )}
 
@@ -71,9 +89,6 @@ export default async function Dashboard() {
               </div>
             ) : (
               <p className="empty"><CalendarDays /> No leave types have been set up yet.</p>
-            )}
-            {!!pending && (
-              <p className="mt-4 flex items-center gap-2 text-sm text-amber"><Hourglass className="size-4" /> {pending} request{pending > 1 ? "s" : ""} waiting for approval</p>
             )}
           </section>
 

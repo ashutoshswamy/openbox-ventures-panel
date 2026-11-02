@@ -35,29 +35,37 @@ export default async function HrHome() {
     { href: "/hr/employees", label: "Active headcount", n: headcount, icon: Users },
     { href: "/hr/employees", label: "Joined this month", n: joiners, icon: UserPlus },
     { href: "/hr/employees", label: "Exits in 30 days", n: exits, icon: LogOut },
-    { href: "/hr/leave", label: "Open leave requests", n: leave, icon: CalendarDays },
-    { href: "/hr/attendance", label: "Pending regularizations", n: regs, icon: ClockAlert },
+    { href: "/hr/leave", label: "Open leave requests", n: leave, icon: CalendarDays, warn: true },
+    { href: "/hr/attendance", label: "Pending regularizations", n: regs, icon: ClockAlert, warn: true },
   ];
 
   return (
     <>
       <PageHeader title="HR overview" sub={new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} />
       <div className="space-y-6">
+        <Link href="/hr/attendance" className="card card-link block rounded-3xl bg-ink p-6 text-ink-text md:p-8">
+          <p className="text-sm font-medium opacity-60">Checked in today</p>
+          <p className="mt-1 flex items-baseline gap-2 tabular-nums">
+            <span className="text-6xl font-semibold tracking-[-0.04em] md:text-7xl">{present.size}</span>
+            <span className="text-2xl opacity-50">/ {headcount ?? 0}</span>
+          </p>
+          <div className="mt-6 flex h-3 gap-0.5 overflow-hidden rounded-full bg-ink-text/10">
+            {[[present.size, "bg-green"], [away.size, "bg-amber"], [notIn, "bg-line"]].map(([n, bar]) => (headcount && n ? <div key={bar as string} className={`${bar} first:rounded-l-full last:rounded-r-full`} style={{ width: `${((n as number) / headcount) * 100}%` }} /> : null))}
+          </div>
+          <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm opacity-70">
+            <span><b>{present.size}</b> present</span><span><b>{away.size}</b> on leave</span><span><b>{notIn}</b> not checked in</span>
+          </p>
+        </Link>
+
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {cards.map(({ href, label, n, icon: Icon }) => (
-            <Link key={label} href={href} className="card card-link p-4">
-              <div className="flex items-center gap-2 text-sm text-muted"><Icon className="size-4" /> {label}</div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{n ?? 0}</div>
+          {cards.map(({ href, label, n, icon: Icon, warn }) => (
+            <Link key={label} href={href} className="card card-link group p-4">
+              <span className={`grid size-9 place-items-center rounded-xl ${warn && n ? "bg-amber-soft text-amber" : "bg-primary-soft text-text"}`}><Icon className="size-4" /></span>
+              <div className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">{n ?? 0}</div>
+              <div className="mt-0.5 flex items-center justify-between text-sm text-muted">{label}<ArrowRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></div>
             </Link>
           ))}
         </div>
-
-        <Link href="/hr/attendance" className="card card-link flex items-center gap-4">
-          <span className="flex-1">
-            Today: <b>{present.size}</b> present · <b>{away.size}</b> on leave · <b>{notIn}</b> not checked in
-          </span>
-          <ArrowRight className="size-5 text-muted" />
-        </Link>
       </div>
     </>
   );

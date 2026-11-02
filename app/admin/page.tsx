@@ -42,6 +42,12 @@ export default async function AdminHome() {
     return { ...o, total: staff.length, office, wfh, leave, absent: Math.max(0, staff.length - att.length - leave), late: att.filter((a) => a.late).length };
   });
   const sum = (k: "office" | "wfh" | "leave" | "absent" | "late" | "total") => stats.reduce((n, s) => n + s[k], 0);
+  const present = sum("office") + sum("wfh");
+  const todo = [
+    { href: "/admin/leave", icon: Hourglass, n: pending ?? 0, text: "leave requests to review", stale: stale.leave > 0 },
+    { href: "/admin/attendance", icon: Clock, n: stale.regularizations, text: "regularizations waiting", stale: true },
+    { href: "/admin/issues", icon: Inbox, n: openIssues ?? 0, text: "open issues from the team", stale: false },
+  ].filter((t) => t.n > 0);
 
   return (
     <>
@@ -51,65 +57,75 @@ export default async function AdminHome() {
       />
 
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {KINDS.map(({ key, label, icon: Icon, tone }) => (
-            <div key={key} className="card p-4">
-              <div className={`flex items-center gap-2 text-sm ${tone}`}><Icon className="size-4" /> {label}</div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{sum(key)}</div>
+        <section className="relative overflow-hidden rounded-3xl bg-ink p-6 text-ink-text md:p-8">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p className="text-sm font-medium opacity-60">Checked in today</p>
+              <p className="mt-1 flex items-baseline gap-2 tabular-nums">
+                <span className="text-6xl font-semibold tracking-[-0.04em] md:text-7xl">{present}</span>
+                <span className="text-2xl opacity-50">/ {sum("total")}</span>
+              </p>
             </div>
-          ))}
-          <div className="card p-4">
-            <div className="flex items-center gap-2 text-sm text-amber"><TriangleAlert className="size-4" /> Late</div>
-            <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{sum("late")}</div>
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+              {KINDS.map(({ key, label, icon: Icon }) => (
+                <div key={key}>
+                  <dt className="flex items-center gap-1.5 text-xs opacity-60"><Icon className="size-3.5" /> {label}</dt>
+                  <dd className="text-2xl font-semibold tabular-nums">{sum(key)}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-        </div>
+          <div className="mt-6 flex h-3 gap-0.5 overflow-hidden rounded-full bg-ink-text/10">
+            {KINDS.map(({ key, bar }) => (sum("total") && sum(key) ? <div key={key} className={`${bar} first:rounded-l-full last:rounded-r-full`} style={{ width: `${(sum(key) / sum("total")) * 100}%` }} /> : null))}
+          </div>
+          {sum("late") > 0 && <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-ink-text/10 px-3 py-1 text-xs font-medium"><TriangleAlert className="size-3.5" /> {sum("late")} late today</p>}
+        </section>
 
-        {!!pending && (
-          <Link href="/admin/leave" className="card card-link flex items-center gap-4 border-amber/30 bg-amber-soft/40">
-            <span className="grid size-10 place-items-center rounded-xl bg-amber-soft text-amber"><Hourglass className="size-5" /></span>
-            <span className="flex-1"><b>{pending}</b> leave request{pending > 1 ? "s" : ""} waiting for review</span>
-            <ArrowRight className="size-5 text-muted" />
-          </Link>
-        )}
-
-        {(stale.leave > 0 || stale.regularizations > 0) && (
-          <section className="card border-amber/30">
-            <h2 className="h2"><Clock /> Needs attention <span className="text-sm font-normal text-muted">waiting over 24 hours</span></h2>
-            <ul className="space-y-1 text-sm">
-              {stale.leave > 0 && <li><Link href="/admin/leave" className="hover:underline"><b>{stale.leave}</b> leave request{stale.leave > 1 ? "s" : ""}</Link></li>}
-              {stale.regularizations > 0 && <li><Link href="/admin/attendance" className="hover:underline"><b>{stale.regularizations}</b> attendance regularization{stale.regularizations > 1 ? "s" : ""}</Link></li>}
-            </ul>
+        {todo.length > 0 && (
+          <section>
+            <h2 className="eyebrow mb-3">Needs you</h2>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {todo.map(({ href, icon: Icon, n, text, stale: old }) => (
+                <Link key={text} href={href} className="card card-link group flex items-center gap-4 p-4">
+                  <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${old ? "bg-amber-soft text-amber" : "bg-primary-soft text-text"}`}><Icon className="size-5" /></span>
+                  <span className="min-w-0 flex-1 leading-tight">
+                    <b className="block text-2xl font-semibold tabular-nums">{n}</b>
+                    <span className="text-sm text-muted">{text}</span>
+                  </span>
+                  <ArrowRight className="size-4 text-muted transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              ))}
+            </div>
           </section>
         )}
 
-        {!!openIssues && (
-          <Link href="/admin/issues" className="card card-link flex items-center gap-4">
-            <span className="grid size-10 place-items-center rounded-xl bg-primary-soft text-primary"><Inbox className="size-5" /></span>
-            <span className="flex-1"><b>{openIssues}</b> open issue{openIssues > 1 ? "s" : ""} reported by the team</span>
-            <ArrowRight className="size-5 text-muted" />
-          </Link>
-        )}
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {stats.map((s) => (
-            <Link key={s.id} href={`/admin/attendance?office=${s.id}`} className="card card-link block">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 font-semibold"><Building2 className="size-4 text-muted" /> {s.name}</h2>
-                <span className="text-sm text-muted">{s.total} people</span>
-              </div>
-              <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2">
-                {KINDS.map(({ key, bar }) => (s.total && s[key] ? <div key={key} className={bar} style={{ width: `${(s[key] / s.total) * 100}%` }} /> : null))}
-              </div>
-              <dl className="mt-4 grid grid-cols-4 gap-2">
-                {KINDS.map(({ key, label, bar }) => (
-                  <div key={key}>
-                    <dt className="flex items-center gap-1.5 text-xs text-muted"><span className={`size-2 rounded-full ${bar}`} />{label}</dt>
-                    <dd className="text-lg font-semibold tabular-nums">{s[key]}</dd>
+        {stats.length > 0 && <h2 className="eyebrow -mb-3">Offices</h2>}
+        <div className="grid gap-4 md:grid-cols-2">
+          {stats.map((s) => {
+            const here = s.office + s.wfh;
+            return (
+              <Link key={s.id} href={`/admin/attendance?office=${s.id}`} className="card card-link block">
+                <div className="mb-5 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="flex items-center gap-2 font-semibold"><Building2 className="size-4 text-muted" /> {s.name}</h3>
+                    <p className="mt-0.5 text-xs text-muted">{s.total} people{s.late > 0 && ` · ${s.late} late`}</p>
                   </div>
-                ))}
-              </dl>
-            </Link>
-          ))}
+                  <p className="text-right tabular-nums"><span className="text-3xl font-semibold tracking-tight">{s.total ? Math.round((here / s.total) * 100) : 0}</span><span className="text-sm text-muted">% in</span></p>
+                </div>
+                <div className="flex h-2 gap-0.5 overflow-hidden rounded-full bg-surface-2">
+                  {KINDS.map(({ key, bar }) => (s.total && s[key] ? <div key={key} className={bar} style={{ width: `${(s[key] / s.total) * 100}%` }} /> : null))}
+                </div>
+                <dl className="mt-4 grid grid-cols-4 gap-2">
+                  {KINDS.map(({ key, label, bar }) => (
+                    <div key={key}>
+                      <dt className="flex items-center gap-1.5 truncate text-xs text-muted"><span className={`size-2 shrink-0 rounded-full ${bar}`} />{label}</dt>
+                      <dd className="text-lg font-semibold tabular-nums">{s[key]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Link>
+            );
+          })}
         </div>
 
         {!offices?.length && (

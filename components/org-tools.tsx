@@ -1,13 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChevronsDownUp, ChevronsUpDown, Search } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Minus, Plus, Search } from "lucide-react";
 
 // Toolbar over the org canvas: find a person (dims the rest, unfolds their path, scrolls to them), fold/unfold all.
 // Works on the server-rendered tree through data-name / <details>, so the chart itself stays a server component.
 export function OrgTools({ summary, children }: { summary: string; children: React.ReactNode }) {
   const canvas = useRef<HTMLDivElement>(null);
   const [miss, setMiss] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const step = (d: number) => setZoom((z) => Math.min(1.25, Math.max(0.5, +(z + d).toFixed(2))));
 
   const find = (q: string) => {
     const root = canvas.current;
@@ -38,10 +40,15 @@ export function OrgTools({ summary, children }: { summary: string; children: Rea
         </label>
         {miss && <span className="text-xs text-muted" role="status">No one by that name</span>}
         <span className="ml-auto hidden text-xs text-muted sm:inline">{summary}</span>
+        <span className="flex items-center rounded-lg border border-line bg-surface">
+          <button type="button" onClick={() => step(-0.1)} disabled={zoom <= 0.5} className="btn btn-ghost btn-icon h-9" title="Zoom out"><Minus /></button>
+          <span className="w-10 text-center text-xs text-muted tabular-nums">{Math.round(zoom * 100)}%</span>
+          <button type="button" onClick={() => step(0.1)} disabled={zoom >= 1.25} className="btn btn-ghost btn-icon h-9" title="Zoom in"><Plus /></button>
+        </span>
         <button type="button" onClick={() => all(true)} className="btn btn-ghost h-9" title="Expand all"><ChevronsUpDown /> <span className="hidden md:inline">Expand all</span></button>
         <button type="button" onClick={() => all(false)} className="btn btn-ghost h-9" title="Collapse all"><ChevronsDownUp /> <span className="hidden md:inline">Collapse all</span></button>
       </div>
-      <div ref={canvas} className="overflow-x-auto">{children}</div>
+      <div ref={canvas} className="overflow-x-auto" style={{ zoom }}>{children}</div>
     </div>
   );
 }

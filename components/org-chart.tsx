@@ -11,21 +11,17 @@ const HUES = ["var(--blue)", "var(--green)", "var(--amber)", "var(--red)"];
 function Card({ p, depth, direct, team }: { p: OrgPerson; depth: number; direct?: number; team?: number }) {
   return (
     <div data-name={p.full_name.toLowerCase()} className={`org-card ${depth === 0 ? "org-root" : ""}`} style={{ "--d": Math.min(depth, 6) } as React.CSSProperties}>
-      <span className="org-avatar"><Avatar name={p.full_name} src={p.avatar_url} size="size-12 text-base" userId={p.id} /></span>
-      <div className="w-full min-w-0">
+      <span className="org-avatar"><Avatar name={p.full_name} src={p.avatar_url} size="size-11 text-base" userId={p.id} /></span>
+      <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold tracking-tight">{p.full_name}</div>
         <div className="org-sub truncate text-xs">{p.designation ?? "No designation"}</div>
+        {p.department && <span className="org-chip mt-1.5 max-w-full"><span className="truncate">{p.department.name}</span></span>}
       </div>
-      {(p.department || direct) && (
-        <div className="flex w-full items-center justify-center gap-1.5">
-          {p.department && <span className="org-chip truncate">{p.department.name}</span>}
-          {!!direct && (
-            <span className="org-chip shrink-0" title={`${direct} direct report${direct === 1 ? "" : "s"}, ${team} in team`}>
-              <Users className="size-3" /> {team}
-              <ChevronDown className="org-chev size-3" />
-            </span>
-          )}
-        </div>
+      {!!direct && (
+        <span className="org-chip shrink-0 self-start" title={`${direct} direct report${direct === 1 ? "" : "s"}, ${team} in team`}>
+          <Users className="size-3" /> {team}
+          <ChevronDown className="org-chev size-3" />
+        </span>
       )}
     </div>
   );
