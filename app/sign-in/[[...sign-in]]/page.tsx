@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SignIn } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
-import { AuthFrame } from "@/components/auth-frame";
+import { AuthFrame, authAppearance } from "@/components/auth-frame";
 
 const title = "Sign in to the Open Box Ventures LLP Panel";
 const description = "Sign in to the Open Box Ventures LLP employee panel for attendance, leave, payroll, HR, team chat and video meetings.";
@@ -30,7 +30,7 @@ export default function Page() {
   return (
     <AuthFrame>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      <SignIn />
+      <SignIn appearance={authAppearance} />
     </AuthFrame>
   );
 }
