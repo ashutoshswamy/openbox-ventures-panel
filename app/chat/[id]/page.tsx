@@ -88,7 +88,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
   const [{ data: channels }, { data, error: loadError }, { data: meta }] = await Promise.all([
     sb.rpc("my_channels"),
     sb.from("messages").select("id, body, attachment_path, created_at, sender_id, reply_to, reactions:message_reactions(emoji, employee_id), sender:employees!messages_sender_id_fkey(full_name, avatar_url)").eq("channel_id", id).order("created_at", { ascending: false }).limit(100),
-    sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name))").eq("id", id).maybeSingle(),
+    sb.from("channels").select("id, type, name, announcements, department_id, office_id, members:channel_members(employee_id, last_read_at, employee:employees(full_name, avatar_url))").eq("id", id).maybeSingle(),
   ]);
   type Ch = { id: string; type: string; name: string | null; announcements: boolean; avatar_url: string | null; peer_id?: string | null };
   let channel = (channels as Ch[] | null)?.find((c) => c.id === id);
@@ -112,21 +112,22 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
       </div>
     );
   // tagging: people in this chat; admins only for admins and HR. Group/DM = its members; department/office = everyone in it; company channels = everyone.
-  const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string } | null }[]).filter((m) => m.employee);
+  const members = (meta.members as unknown as { employee_id: string; employee: { full_name: string; avatar_url: string | null } | null }[]).filter((m) => m.employee);
+  const photo = new Map(members.map((m) => [m.employee!.full_name, m.employee!.avatar_url])); // for the member list
   const idOf = new Map(members.map((m) => [m.employee!.full_name, m.employee_id])); // for the member list
   let people = members.map((m) => m.employee!.full_name);
   if (meta.type === "department" || meta.type === "office" || meta.type === "global" || meta.announcements) {
-    let q = sb.from("employees").select("id, full_name").eq("active", true).not("clerk_user_id", "is", null);
+    let q = sb.from("employees").select("id, full_name, avatar_url").eq("active", true).not("clerk_user_id", "is", null);
     if (meta.type === "department" && !meta.announcements) q = q.eq("department_id", meta.department_id!);
     else if (meta.type === "office" && !meta.announcements) q = q.eq("office_id", meta.office_id!);
     const found = (await q).data ?? [];
-    for (const p of found) idOf.set(p.full_name, p.id);
+    for (const p of found) { idOf.set(p.full_name, p.id); photo.set(p.full_name, p.avatar_url); }
     people = [...found.map((p) => p.full_name), ...people]; // + people an admin/HR added from outside
   }
   // admins aren't members (RLS hides them), so only admins and HR get them (names only) in the taggable list
   if (me.role === "admin" || me.role === "hr") {
-    const { data: admins } = await adminDb().from("employees").select("id, full_name").eq("role", "admin").eq("active", true);
-    for (const a of admins ?? []) idOf.set(a.full_name, a.id);
+    const { data: admins } = await adminDb().from("employees").select("id, full_name, avatar_url").eq("role", "admin").eq("active", true);
+    for (const a of admins ?? []) { idOf.set(a.full_name, a.id); photo.set(a.full_name, a.avatar_url); }
     people.push(...(admins ?? []).map((a) => a.full_name));
   }
   const roster = [...new Set(people)].sort(); // everyone in the chat, me included
@@ -175,7 +176,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
             {channel.announcements ? "Company-wide, posted by admins and managers" : channel.type === "dm" ? "Direct message" : channel.type === "department" ? "Department channel" : channel.type === "office" ? "Everyone in this office" : channel.type === "global" ? "Everyone in the company" : "Group"}
           </p>
         </div>
-        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} ids={Object.fromEntries(idOf)} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
+        {channel.type !== "dm" && !channel.announcements && <MemberList names={roster} ids={Object.fromEntries(idOf)} photos={Object.fromEntries(photo)} me={me.full_name} channelId={canAdd ? id : undefined} addable={canAdd ? addable : undefined} />}
         {(!viewOnly || (me.role === "admin" && channel.type !== "dm")) && !channel.announcements && <CallButton channelId={id} name={me.full_name} />}
       </header>
 
