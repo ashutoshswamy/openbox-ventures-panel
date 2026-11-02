@@ -57,7 +57,7 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
                 <span className="text-sm font-medium">{b.name}</span>
                 {!b.paid && <span className="badge">Unpaid</span>}
               </div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{Number(b.balance)}</div>
+              <div className="font-display mt-2 text-3xl font-semibold tracking-tight tabular-nums">{Number(b.balance)}</div>
               <div className="mt-1 text-xs text-muted tabular-nums">
                 of {Number(b.entitled)} · {Number(b.used)} used{Number(b.pending) ? ` · ${Number(b.pending)} pending` : ""}
               </div>

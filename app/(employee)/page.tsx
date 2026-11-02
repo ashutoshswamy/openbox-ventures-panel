@@ -78,7 +78,7 @@ export default async function Dashboard() {
                         <span className="text-sm font-medium">{b.name}</span>
                         <span className="text-xs text-muted tabular-nums">{Number(b.used)} / {Number(b.entitled)} used</span>
                       </div>
-                      <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{Number(b.balance)}<span className="ml-1 text-sm font-normal text-muted">days left</span></div>
+                      <div className="font-display mt-2 text-3xl font-semibold tracking-tight tabular-nums">{Number(b.balance)}<span className="ml-1 text-sm font-normal text-muted">days left</span></div>
                       <div className="mt-3 h-1.5 rounded-full bg-line"><div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} /></div>
                     </div>
                   );
