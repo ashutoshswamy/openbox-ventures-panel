@@ -31,7 +31,7 @@ export function Workday({
   return (
     <div>
       <div className="flex items-baseline gap-3">
-        <span className="font-display text-6xl font-medium tracking-[-0.04em] tabular-nums" suppressHydrationWarning>
+        <span className="text-6xl font-medium tracking-[-0.04em] tabular-nums" suppressHydrationWarning>
           {now ? clock(now, tz) : "--:--"}
         </span>
         <span className="text-sm text-muted">{label}</span>
