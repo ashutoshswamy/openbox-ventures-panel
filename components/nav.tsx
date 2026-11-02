@@ -52,7 +52,7 @@ export function Nav({ links }: { links: NavLink[] }) {
           >
             <Icon className={`size-[18px] ${on ? "text-text" : "opacity-80 group-hover:opacity-100"}`} strokeWidth={1.75} />
             {label}
-            {!!count && <span className="ml-auto rounded-full bg-amber-soft px-1.5 text-[11px] font-semibold text-amber tabular-nums">{count}</span>}
+            {!!count && <span className="ml-auto rounded-full bg-amber-soft px-1.5 text-xs font-semibold text-amber tabular-nums">{count}</span>}
           </Link>
         );
       })}

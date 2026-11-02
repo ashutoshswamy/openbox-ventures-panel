@@ -93,7 +93,7 @@ export default async function LeavePolicy() {
         </ul>
         <ActionForm action={saveHoliday} className="flex flex-wrap gap-2">
           <input type="date" name="date" required className="input w-auto" />
-          <input name="name" required placeholder="Holiday name" className="input w-auto flex-1" />
+          <input name="name" required placeholder="Holiday name" aria-label="Holiday name" className="input w-auto flex-1" />
           <select name="office_id" className="input w-auto">
             <option value="">All offices</option>
             {offices?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}

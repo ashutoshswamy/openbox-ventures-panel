@@ -37,6 +37,7 @@ export function Shell({
 }) {
   return (
     <div className="flex min-h-dvh w-full min-w-0 flex-1 flex-col lg:flex-row">
+      <a href="#main" className="skip">Skip to content</a>
       <AvatarSync stored={user.avatar} />
       <LiveRefresh meId={user.id} meName={user.name} />
       <aside className="sticky top-0 z-10 min-w-0 border-b border-line bg-bg/85 backdrop-blur lg:h-dvh lg:w-60 lg:shrink-0 lg:border-r lg:border-b-0 lg:bg-bg">
@@ -57,7 +58,7 @@ export function Shell({
           </div>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10 lg:pt-4">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none md:px-10 md:py-10 lg:pt-4">
         {/* own row, not absolute: would collide with PageHeader actions on the right */}
         <div className="mb-4 hidden items-center justify-end gap-2 lg:flex"><Pwa /><ThemeToggle /></div>
         <div className="rise mx-auto max-w-6xl">{children}</div>

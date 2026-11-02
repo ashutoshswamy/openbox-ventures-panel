@@ -59,7 +59,7 @@ export function Workday({
 function Marker({ at, label }: { at: number; label: string }) {
   return (
     <span className="absolute -top-7 -translate-x-1/2" style={{ left: `${at}%` }}>
-      <span className="block rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap text-ink-text tabular-nums">{label}</span>
+      <span className="block rounded-md bg-ink px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-ink-text tabular-nums">{label}</span>
       <span className="mx-auto block h-3 w-px bg-ink/40" />
     </span>
   );

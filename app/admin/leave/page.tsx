@@ -118,7 +118,7 @@ export default async function AdminLeave({ searchParams }: PageProps<"/admin/lea
               {canAct(r) && (
               <ActionForm action={reviewLeave} className="mt-4 flex flex-wrap gap-2">
                 <input type="hidden" name="id" value={r.id} />
-                <input name="review_note" placeholder="Add a note (optional)" className="input w-auto min-w-48 flex-1" />
+                <input name="review_note" placeholder="Add a note (optional)" aria-label="Add a note (optional)" className="input w-auto min-w-48 flex-1" />
                 <button name="status" value="rejected" className="btn btn-danger"><X /> Reject</button>
                 <button name="status" value="approved" className="btn btn-primary"><Check /> {final ? "Final approve" : "Approve"}</button>
               </ActionForm>

@@ -114,7 +114,7 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
         <div>
           <ActionForm action={addTodo} className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 pl-4 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10 sm:flex-nowrap">
             <label className="sr-only" htmlFor="new-task">New task</label>
-            <input id="new-task" name="title" required maxLength={300} autoComplete="off" placeholder="Add a task" className="h-10 min-w-0 flex-1 basis-full bg-transparent text-[15px] outline-none placeholder:text-muted sm:basis-auto" />
+            <input id="new-task" name="title" required maxLength={300} autoComplete="off" placeholder="Add a task" aria-label="Add a task" className="h-10 min-w-0 flex-1 basis-full bg-transparent text-[15px] outline-none placeholder:text-muted sm:basis-auto" />
             <label className="sr-only" htmlFor="new-due">Due date</label>
             <input id="new-due" type="date" name="due_on" min={today} className="input h-10 w-auto min-w-0 border-transparent bg-surface-2 text-muted" />
             <button className="btn btn-primary h-10"><Plus /> Add</button>

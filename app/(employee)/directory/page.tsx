@@ -38,9 +38,9 @@ export default async function Directory({ searchParams }: PageProps<"/directory"
       <AutoForm className="flex flex-wrap gap-2">
         <div className="relative min-w-60 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <input name="q" defaultValue={q as string} placeholder="Search by name or email" className="input pl-9" />
+          <input name="q" defaultValue={q as string} placeholder="Search by name or email" aria-label="Search by name or email" className="input pl-9" />
         </div>
-        <select name="office" defaultValue={office as string} className="input w-auto">
+        <select name="office" aria-label="Filter by office" defaultValue={office as string} className="input w-auto">
           <option value="">All offices</option>
           {offices?.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>

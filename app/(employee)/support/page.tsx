@@ -46,7 +46,7 @@ export default async function Support() {
               </div>
               <p className="mt-3 text-sm whitespace-pre-wrap text-muted">{i.body}</p>
               {i.admin_note && (
-                <div className="mt-3 rounded-xl border-l-2 border-primary bg-primary-soft/50 px-3 py-2 text-sm">
+                <div className="mt-3 rounded-xl bg-primary-soft px-3 py-2 text-sm">
                   <span className="eyebrow text-primary">Admin reply</span>
                   <p className="mt-1 whitespace-pre-wrap">{i.admin_note}</p>
                 </div>

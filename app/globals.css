@@ -95,7 +95,18 @@ body {
 }
 
 ::selection {
-  background: var(--primary-soft);
+  background: color-mix(in srgb, var(--blue) 28%, transparent);
+}
+
+/* themed scrollbars (the nav and tables scroll horizontally on phones) */
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* keyboard users jump past the sidebar */
+.skip {
+  @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-fg;
 }
 
 @keyframes rise {

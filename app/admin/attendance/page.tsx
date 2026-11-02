@@ -111,7 +111,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
                   {canReview ? (
                     <ActionForm action={reviewRegularization} className="flex flex-wrap gap-2">
                       <input type="hidden" name="id" value={r.id} />
-                      <input name="review_note" placeholder="Note (optional)" className="input w-auto min-w-40" />
+                      <input name="review_note" placeholder="Note (optional)" aria-label="Note (optional)" className="input w-auto min-w-40" />
                       <button name="status" value="rejected" className="btn btn-danger"><X /> Reject</button>
                       <button name="status" value="approved" className="btn btn-primary"><Check /> Approve</button>
                     </ActionForm>
@@ -169,7 +169,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
                             </select>
                             <input type="time" name="check_in" required defaultValue={hhmm(r?.check_in_at, tz)} className="input w-auto" />
                             <input type="time" name="check_out" defaultValue={hhmm(r?.check_out_at, tz)} className="input w-auto" />
-                            <input name="note" placeholder="Note" defaultValue={r?.note ?? ""} className="input w-auto flex-1" />
+                            <input name="note" placeholder="Note" aria-label="Note" defaultValue={r?.note ?? ""} className="input w-auto flex-1" />
                             <button className="btn btn-primary"><Save /> Save</button>
                           </ActionForm>
                           {r && (

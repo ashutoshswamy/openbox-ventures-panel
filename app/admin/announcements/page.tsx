@@ -27,7 +27,7 @@ export default async function Announcements() {
       <div className="max-w-3xl space-y-6">
         <section className="card">
           <ActionForm action={saveAnnouncement} className="space-y-4">
-            <input name="title" required placeholder="Headline" className="input h-11 text-base font-medium" />
+            <input name="title" required placeholder="Headline" aria-label="Headline" className="input h-11 text-base font-medium" />
             <textarea name="body" required rows={4} placeholder="What does everyone need to know?" className="input" />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="-ml-2 flex items-center gap-2"><AttachInput name="attachment" /></span>

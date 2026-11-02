@@ -98,7 +98,7 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
                   return (
                     <li key={h.date + h.name} className="flex items-center gap-3">
                       <span className="grid w-12 shrink-0 rounded-lg bg-primary-soft py-1 text-center text-primary">
-                        <span className="text-[10px] font-semibold uppercase">{d.toLocaleDateString("en-IN", { month: "short" })}</span>
+                        <span className="text-xs font-semibold uppercase">{d.toLocaleDateString("en-IN", { month: "short" })}</span>
                         <span className="text-lg leading-none font-semibold">{d.getDate()}</span>
                       </span>
                       <span className="text-sm">{h.name}<span className="block text-xs text-muted">{d.toLocaleDateString("en-IN", { weekday: "long" })}</span></span>

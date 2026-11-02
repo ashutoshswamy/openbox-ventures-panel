@@ -192,7 +192,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                   <span className="text-[11px] tabular-nums">{fmtDate(m.created_at.slice(0, 10))}</span>
                 </div>
               ) : (
-                <div className="rounded-2xl border border-line border-l-4 border-l-primary bg-surface p-4">
+                <div className="rounded-2xl border border-line bg-surface p-4">
                   {title && <h3 className="font-semibold">{title}</h3>}
                   <p className={`text-sm whitespace-pre-wrap ${title ? "mt-1 text-muted" : ""}`}>{text}</p>
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip="bg-surface-2" />}
@@ -226,7 +226,7 @@ export default async function Channel({ params }: PageProps<"/chat/[id]">) {
                   )}
                   {m.body && <Body tags={tags} text={m.body} mine={mine} channelId={id} liveCall={liveCall} myName={me.full_name} sentAt={m.created_at} />}
                   {m.attachment_path && <Attachment id={m.id} path={m.attachment_path} chip={mine ? "bg-primary-fg/15" : "bg-surface"} />}
-                  <div className={`mt-0.5 text-right text-[10px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
+                  <div className={`mt-0.5 text-right text-[11px] tabular-nums ${mine ? "opacity-70" : "text-muted"}`}>{fmtTime(m.created_at)}{mine && ticks && <Tick state={stateOf(m.created_at)} />}</div>
                 </div>
                 <Reactions id={m.id} channelId={id} reactions={m.reactions ?? []} meId={me.id} mine={mine} canReact={!viewOnly} />
               </div>

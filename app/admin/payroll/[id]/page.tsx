@@ -90,7 +90,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
           {run.status === "submitted" && me.role === "admin" && (
             <ActionForm action={reviewRun} className="flex flex-wrap gap-2">
               <input type="hidden" name="id" value={id} />
-              <input name="note" placeholder="Note (required to reject)" className="input w-auto min-w-56" />
+              <input name="note" placeholder="Note (required to reject)" aria-label="Note (required to reject)" className="input w-auto min-w-56" />
               <button name="decision" value="reject" className="btn btn-danger"><X /> Send back</button>
               <button name="decision" value="approve" className="btn btn-primary"><Check /> Approve</button>
             </ActionForm>
