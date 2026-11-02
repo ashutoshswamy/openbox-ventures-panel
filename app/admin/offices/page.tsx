@@ -12,7 +12,7 @@ export const metadata = { title: "Offices" };
 
 type Office = {
   id: string; name: string; address: string | null; timezone: string; lat: number | null; lng: number | null;
-  radius_m: number; work_start: string; work_end: string; grace_min: number; work_days: number[];
+  radius_m: number; work_start: string; work_end: string; dst_enabled: boolean; dst_work_start: string; dst_work_end: string; work_start_eff: string; work_end_eff: string; grace_min: number; work_days: number[];
   report_daily: boolean; report_weekly: boolean; report_monthly: boolean;
 };
 
@@ -57,6 +57,12 @@ function OfficeForm({ o }: { o?: Office }) {
       <Group title="Hours">
         <label className="field">Work starts<input name="work_start" type="time" defaultValue={o?.work_start.slice(0, 5) ?? "09:30"} className="input tabular-nums" /></label>
         <label className="field">Work ends<input name="work_end" type="time" defaultValue={o?.work_end.slice(0, 5) ?? "18:30"} className="input tabular-nums" /></label>
+        <label className="field">DST work starts<input name="dst_work_start" type="time" defaultValue={o?.dst_work_start.slice(0, 5) ?? "09:30"} className="input tabular-nums" /></label>
+        <label className="field">DST work ends<input name="dst_work_end" type="time" defaultValue={o?.dst_work_end.slice(0, 5) ?? "18:30"} className="input tabular-nums" /></label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 transition-colors hover:bg-surface-2/60 has-checked:border-primary has-checked:bg-primary-soft has-focus-visible:ring-2 has-focus-visible:ring-primary sm:col-span-2">
+          <input type="checkbox" name="dst_enabled" defaultChecked={o?.dst_enabled ?? false} className="mt-0.5 size-4 accent-primary" />
+          <span className="text-sm"><span className="block font-medium">Daylight saving time</span><span className="text-xs text-muted">When on, the DST hours above replace the regular hours. Turn off when DST ends.</span></span>
+        </label>
         <label className="field">Late after (grace, min)<input name="grace_min" type="number" min={0} defaultValue={o?.grace_min ?? 15} className="input tabular-nums" /></label>
         <div className="field">
           <span id={`days-${o?.id ?? "new"}`}>Working days</span>
@@ -112,7 +118,7 @@ export default async function Offices() {
                   <span className="block truncate text-base font-semibold tracking-tight">{o.name}</span>
                   {o.address && <span className="block truncate text-sm text-muted">{o.address}</span>}
                   <span className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted">
-                    <span className="flex items-center gap-1.5 tabular-nums"><Clock3 className="size-3.5" /> {o.work_start.slice(0, 5)} to {o.work_end.slice(0, 5)}</span>
+                    <span className="flex items-center gap-1.5 tabular-nums"><Clock3 className="size-3.5" /> {o.work_start_eff.slice(0, 5)} to {o.work_end_eff.slice(0, 5)}{o.dst_enabled && " (DST)"}</span>
                     <span className="flex items-center gap-1.5"><CalendarDays className="size-3.5" /> {dayRange(o.work_days)}</span>
                     <span className={`flex items-center gap-1.5 tabular-nums ${o.lat == null ? "font-medium text-amber" : ""}`}><MapPin className="size-3.5" /> {o.lat == null ? "Location not set" : `${o.radius_m} m radius`}</span>
                     <span className="flex items-center gap-1.5"><ClipboardList className="size-3.5" /> {reports.length ? `${reports.join(", ")} reports` : "No work reports"}</span>

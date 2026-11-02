@@ -9,7 +9,7 @@ export async function Today({ officeId }: { officeId: string | null }) {
   const sb = db();
   const [{ data: shift }, { data: office }] = await Promise.all([
     sb.rpc("my_shift"),
-    officeId ? sb.from("offices").select("name, timezone, work_start, work_end, grace_min").eq("id", officeId).maybeSingle() : { data: null },
+    officeId ? sb.from("offices").select("name, timezone, work_start_eff, work_end_eff, grace_min").eq("id", officeId).maybeSingle() : { data: null },
   ]);
   // shift spans midnight (e.g. 17:30-02:30), so look it up by check-in time, not calendar date
   const { data: a } = shift?.id ? await sb.from("attendance_report").select("*").eq("id", shift.id).maybeSingle() : { data: null };
@@ -34,8 +34,8 @@ export async function Today({ officeId }: { officeId: string | null }) {
       <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
         <Workday
           tz={tz}
-          start={office?.work_start ?? "09:30"}
-          end={office?.work_end ?? "18:30"}
+          start={office?.work_start_eff ?? "09:30"}
+          end={office?.work_end_eff ?? "18:30"}
           grace={office?.grace_min ?? 15}
           checkIn={a?.check_in_at}
           checkOut={a?.check_out_at}
