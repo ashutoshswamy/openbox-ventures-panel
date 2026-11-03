@@ -11,6 +11,30 @@ export function shiftMonth(month: string, n: number) {
   return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7);
 }
 
+export type View = "day" | "week" | "month";
+
+export function validDay(v: unknown, fallback: string) {
+  const s = String(v), t = Date.parse(s + "T00:00:00Z");
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(t) && new Date(t).toISOString().slice(0, 10) === s ? s : fallback;
+}
+
+export const shiftDay = (d: string, n: number) => new Date(Date.parse(d + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+
+export function viewRange(view: View, at: string) {
+  if (view === "day") return { from: at, to: at };
+  if (view === "week") { const from = shiftDay(at, 1 - isoDow(at)); return { from, to: shiftDay(from, 6) }; }
+  return monthRange(at.slice(0, 7));
+}
+
+export const shiftView = (view: View, at: string, n: number) => (view === "month" ? shiftMonth(at.slice(0, 7), n) + "-01" : shiftDay(at, n * (view === "week" ? 7 : 1)));
+
+// ?view=day|week|month&at=YYYY-MM-DD (legacy ?month=YYYY-MM still works) → the visible range
+export function calView(sp: { view?: unknown; at?: unknown; month?: unknown }, fallback: string) {
+  const view: View = sp.view === "day" || sp.view === "week" ? sp.view : "month";
+  const at = validDay(sp.at, validMonth(sp.month, "") ? `${sp.month}-01` : fallback);
+  return { view, at, ...viewRange(view, at) };
+}
+
 // inclusive; empty when end < start
 export function eachDay(start: string, end: string) {
   const out: string[] = [];

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { LEAVE_TONE, fmtDate, todayIn } from "@/lib/util";
-import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
-import { MonthCalendar, type CalCell, type CalLine } from "@/components/month-calendar";
+import { calView, daysWithin, eachDay, isoDow, pageOf } from "@/lib/calendar";
+import { Calendar, type CalCell, type CalLine } from "@/components/calendar";
 import { Pager } from "@/components/pager";
 import { CalendarCheck2, CalendarRange, Check, FileText, History, Settings2, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
@@ -31,8 +31,7 @@ export default async function AdminLeave({ searchParams }: PageProps<"/admin/lea
   const me = await staffPage();
   const sp = await searchParams;
   const today = todayIn();
-  const month = validMonth(sp.month, today.slice(0, 7));
-  const { from, to } = monthRange(month);
+  const { view, at, from, to } = calView(sp, today);
   const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const sb = db();
   const year = `${new Date().getFullYear()}-01-01`;
@@ -130,7 +129,7 @@ export default async function AdminLeave({ searchParams }: PageProps<"/admin/lea
 
         <section className="card">
           <h2 className="h2"><CalendarRange /> Who is away</h2>
-          <MonthCalendar month={month} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Awaiting approval"], ["blue", "Holiday"]]} />
+          <Calendar view={view} at={at} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Awaiting approval"], ["blue", "Holiday"]]} />
         </section>
 
         <section className="card overflow-x-auto">

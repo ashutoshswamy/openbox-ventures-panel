@@ -1,13 +1,14 @@
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
-import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
+import { calView, daysWithin, eachDay, isoDow, pageOf, validDay } from "@/lib/calendar";
 import Link from "next/link";
 import { Building2, CalendarDays, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
-import { MonthCalendar, type CalCell } from "@/components/month-calendar";
+import { Calendar, type CalCell } from "@/components/calendar";
+import { ExportForm } from "@/components/export-form";
 import { Pager } from "@/components/pager";
 import { PageHeader } from "@/components/shell";
 import { deleteAttendance, reviewRegularization, saveAttendance } from "../actions";
@@ -23,16 +24,15 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   const me = await staffPage();
   const sp = await searchParams;
   const today = todayIn();
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(sp.date)) ? String(sp.date) : today;
-  const month = validMonth(sp.month, date.slice(0, 7));
-  const { from, to } = monthRange(month);
+  const date = validDay(sp.date, today);
+  const { view, at, from, to } = calView(sp, date);
   const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const office = me.role === "admin" ? (sp.office ? String(sp.office) : null) : me.office_id;
   const sb = db();
 
   let emps = sb.from("employees").select("id, full_name, office_id, avatar_url").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
   if (office) emps = emps.eq("office_id", office);
-  // month calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the month.
+  // calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the range.
   const monthRows = async () => {
     const all: { date: string; late: boolean }[] = [];
     for (let i = 0; ; i += 1000) {
@@ -57,7 +57,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   for (const d of eachDay(from, to)) {
     const day = monthAtt.filter((r) => r.date === d);
     const away = (monthLeaves ?? []).filter((l) => (!office || (l.employee as { office_id?: string } | null)?.office_id === office) && daysWithin(l.start_date, l.end_date, from, to).includes(d)).length;
-    const q = new URLSearchParams({ ...(office ? { office } : {}), date: d, month });
+    const q = new URLSearchParams({ ...(office ? { office } : {}), date: d, view, at });
     cells[d] = {
       href: `?${q}`,
       off: isoDow(d) > 5,
@@ -126,8 +126,8 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       )}
 
       <section className="card">
-        <h2 className="h2"><CalendarDays /> Month at a glance</h2>
-        <MonthCalendar month={month} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["muted", "On leave"]]} />
+        <h2 className="h2"><CalendarDays /> Calendar</h2>
+        <Calendar view={view} at={at} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["muted", "On leave"]]} />
         <p className="mt-2 text-xs text-muted">Click a day to list who was in below.</p>
       </section>
 
@@ -192,12 +192,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
       <section className="card">
         <h2 className="h2"><Download /> Export to CSV</h2>
-        <form action="/admin/attendance/export" className="flex flex-wrap gap-2">
-          <input type="date" name="from" required defaultValue={date.slice(0, 8) + "01"} className="input w-auto" />
-          <input type="date" name="to" required defaultValue={date} className="input w-auto" />
-          {office && <input type="hidden" name="office" value={office} />}
-          <button className="btn"><Download /> Download</button>
-        </form>
+        <ExportForm action="/admin/attendance/export" date={date} office={office} />
       </section>
     </div>
     </>

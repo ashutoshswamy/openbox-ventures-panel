@@ -2,8 +2,8 @@ import { CalendarDays, CalendarPlus, FileText, PartyPopper, Send, Upload, X } fr
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { LEAVE_TONE, fmtDate, todayIn } from "@/lib/util";
-import { daysWithin, eachDay, isoDow, monthRange, pageOf, validMonth } from "@/lib/calendar";
-import { MonthCalendar, type CalCell } from "@/components/month-calendar";
+import { calView, daysWithin, eachDay, isoDow, pageOf } from "@/lib/calendar";
+import { Calendar, type CalCell } from "@/components/calendar";
 import { Pager } from "@/components/pager";
 import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
@@ -18,8 +18,7 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
   const me = await employeePage();
   const sp = await searchParams;
   const today = todayIn();
-  const month = validMonth(sp.month, today.slice(0, 7));
-  const { from, to } = monthRange(month);
+  const { view, at, from, to } = calView(sp, today);
   const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const sb = db();
   const [{ data: balances }, { data: types }, { data: requests, count }, { data: holidays }, { data: monthLeaves }, { data: monthHols }, { data: office }] = await Promise.all([
@@ -65,56 +64,11 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
           ))}
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <section className="card">
-            <h2 className="h2"><CalendarPlus /> Request leave</h2>
-            <ActionForm action={applyLeave} className="grid gap-4 sm:grid-cols-2">
-              <label className="field sm:col-span-2">Leave type
-                <select name="leave_type_id" required className="input">
-                  {types?.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}{t.doc_required_after_days != null ? ` - document needed over ${t.doc_required_after_days} days` : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">From<input type="date" name="start_date" required className="input" /></label>
-              <label className="field">To<input type="date" name="end_date" className="input" /></label>
-              <label className="check sm:col-span-2"><input type="checkbox" name="half_day" /> Half day (single date only)</label>
-              <label className="field sm:col-span-2">Reason<textarea name="reason" rows={3} className="input" placeholder="Optional" /></label>
-              <div className="field sm:col-span-2">Supporting document
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface p-1"><AttachInput name="doc" bucket="leave-docs" /></div>
-              </div>
-              <div className="sm:col-span-2"><button className="btn btn-primary"><Send /> Send request</button></div>
-            </ActionForm>
-          </section>
-
-          <section className="card">
-            <h2 className="h2"><PartyPopper /> Upcoming holidays</h2>
-            {holidays?.length ? (
-              <ul className="space-y-2">
-                {holidays.map((h) => {
-                  const d = new Date(h.date + "T00:00:00");
-                  return (
-                    <li key={h.date + h.name} className="flex items-center gap-3">
-                      <span className="grid w-12 shrink-0 rounded-lg bg-primary-soft py-1 text-center text-primary">
-                        <span className="text-xs font-semibold uppercase">{d.toLocaleDateString("en-IN", { month: "short" })}</span>
-                        <span className="text-lg leading-none font-semibold">{d.getDate()}</span>
-                      </span>
-                      <span className="text-sm">{h.name}<span className="block text-xs text-muted">{d.toLocaleDateString("en-IN", { weekday: "long" })}</span></span>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="empty"><PartyPopper /> No upcoming holidays.</p>
-            )}
-          </section>
-        </div>
-
+        <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
+          <div className="space-y-6">
         <section className="card">
           <h2 className="h2"><CalendarDays /> Calendar</h2>
-          <MonthCalendar month={month} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Pending approval"], ["blue", "Holiday"]]} />
+          <Calendar view={view} at={at} cells={cells} today={today} legend={[["amber", "Approved leave"], ["muted", "Pending approval"], ["blue", "Holiday"]]} />
         </section>
 
         <section className="card">
@@ -159,6 +113,54 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
           )}
           <Pager page={page} total={count ?? 0} size={SIZE} />
         </section>
+          </div>
+          <div className="space-y-6 lg:sticky lg:top-4">
+          <section className="card">
+            <h2 className="h2"><CalendarPlus /> Request leave</h2>
+            <ActionForm action={applyLeave} className="grid gap-4 sm:grid-cols-2">
+              <label className="field sm:col-span-2">Leave type
+                <select name="leave_type_id" required className="input">
+                  {types?.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.doc_required_after_days != null ? ` - document needed over ${t.doc_required_after_days} days` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">From<input type="date" name="start_date" required className="input" /></label>
+              <label className="field">To<input type="date" name="end_date" className="input" /></label>
+              <label className="check sm:col-span-2"><input type="checkbox" name="half_day" /> Half day (single date only)</label>
+              <label className="field sm:col-span-2">Reason<textarea name="reason" rows={3} className="input" placeholder="Optional" /></label>
+              <div className="field sm:col-span-2">Supporting document
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface p-1"><AttachInput name="doc" bucket="leave-docs" /></div>
+              </div>
+              <div className="sm:col-span-2"><button className="btn btn-primary"><Send /> Send request</button></div>
+            </ActionForm>
+          </section>
+
+          <section className="card">
+            <h2 className="h2"><PartyPopper /> Upcoming holidays</h2>
+            {holidays?.length ? (
+              <ul className="space-y-2">
+                {holidays.map((h) => {
+                  const d = new Date(h.date + "T00:00:00");
+                  return (
+                    <li key={h.date + h.name} className="flex items-center gap-3">
+                      <span className="grid w-12 shrink-0 rounded-lg bg-primary-soft py-1 text-center text-primary">
+                        <span className="text-xs font-semibold uppercase">{d.toLocaleDateString("en-IN", { month: "short" })}</span>
+                        <span className="text-lg leading-none font-semibold">{d.getDate()}</span>
+                      </span>
+                      <span className="text-sm">{h.name}<span className="block text-xs text-muted">{d.toLocaleDateString("en-IN", { weekday: "long" })}</span></span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="empty"><PartyPopper /> No upcoming holidays.</p>
+            )}
+          </section>
+          </div>
+        </div>
       </div>
     </>
   );

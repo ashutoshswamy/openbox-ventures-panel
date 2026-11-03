@@ -2,9 +2,8 @@ import { Building2, CalendarDays, CalendarX2, ClockAlert, House, Send, TriangleA
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { LEAVE_TONE, fmtDate, fmtTime, todayIn } from "@/lib/util";
-import { daysWithin, eachDay, isoDow, monthRange, validMonth } from "@/lib/calendar";
-import { AutoForm } from "@/components/auto-form";
-import { MonthCalendar, type CalCell } from "@/components/month-calendar";
+import { calView, daysWithin, eachDay, isoDow, monthRange } from "@/lib/calendar";
+import { Calendar, type CalCell } from "@/components/calendar";
 import { ActionForm } from "@/components/action-form";
 import { Today } from "@/components/today";
 import { PageHeader } from "@/components/shell";
@@ -17,13 +16,13 @@ export const metadata = { title: "Attendance" };
 export default async function Attendance({ searchParams }: PageProps<"/attendance">) {
   const me = await employeePage();
   const today = todayIn();
-  const month = validMonth((await searchParams).month, today.slice(0, 7));
-  const { from, to: end } = monthRange(month);
+  const { view, at, from, to: end } = calView(await searchParams, today);
+  const month = monthRange(at.slice(0, 7)); // regularization quota is monthly whatever the view
   const sb = db();
 
   const [{ data: rows }, { data: regs }, { data: office }, { data: holidays }, { data: leaves }, { data: self }] = await Promise.all([
-    sb.from("attendance_report").select("*").eq("employee_id", me.id).gte("date", `${month}-01`).lte("date", end).order("date", { ascending: false }),
-    sb.from("regularizations").select("*").eq("employee_id", me.id).gte("date", `${month}-01`).lte("date", end).order("date", { ascending: false }),
+    sb.from("attendance_report").select("*").eq("employee_id", me.id).gte("date", from).lte("date", end).order("date", { ascending: false }),
+    sb.from("regularizations").select("*").eq("employee_id", me.id).gte("date", month.from).lte("date", month.to).order("date", { ascending: false }),
     me.office_id ? sb.from("offices").select("work_days").eq("id", me.office_id).maybeSingle() : { data: null },
     sb.from("holidays").select("date, name, office_id").gte("date", from).lte("date", end),
     sb.from("leave_requests").select("start_date, end_date, type:leave_types(name)").eq("employee_id", me.id).eq("status", "approved").lte("start_date", end).gte("end_date", from),
@@ -66,17 +65,7 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
 
         <section className="card">
           <h2 className="h2"><CalendarDays /> Calendar</h2>
-          <MonthCalendar month={month} cells={cells} today={today} legend={[["green", "Office"], ["blue", "Home / holiday"], ["amber", "Late / leave"], ["red", "Absent"]]} />
-        </section>
-
-        <section className="card">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="h2 mb-0">History</h2>
-            <AutoForm className="flex gap-2">
-              <input type="month" name="month" defaultValue={month} className="input w-auto" />
-            </AutoForm>
-          </div>
-          <dl className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <dl className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {stats.map(([k, v]) => (
               <div key={k} className="rounded-xl bg-surface-2/70 px-4 py-3">
                 <dt className="text-xs text-muted">{k}</dt>
@@ -84,6 +73,11 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
               </div>
             ))}
           </dl>
+          <Calendar view={view} at={at} cells={cells} today={today} legend={[["green", "Office"], ["blue", "Home / holiday"], ["amber", "Late / leave"], ["red", "Absent"]]} />
+        </section>
+
+        <section className="card">
+          <h2 className="h2">History <span className="text-sm font-normal text-muted">· {from === end ? fmtDate(from) : `${fmtDate(from)} - ${fmtDate(end)}`}</span></h2>
           {rows?.length ? (
             <div className="overflow-x-auto">
               <table className="table">
@@ -110,7 +104,7 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
               </table>
             </div>
           ) : (
-            <p className="empty"><CalendarX2 /> No attendance recorded this month.</p>
+            <p className="empty"><CalendarX2 /> No attendance recorded in this period.</p>
           )}
         </section>
 
