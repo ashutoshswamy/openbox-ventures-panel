@@ -28,16 +28,18 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   const { view, at, from, to } = calView(sp, date);
   const { page, from: r0, to: r1 } = pageOf(sp.page, SIZE);
   const office = me.role === "admin" ? (sp.office ? String(sp.office) : null) : me.office_id;
+  const emp = sp.emp ? String(sp.emp) : null; // calendar filter: one person
   const sb = db();
 
-  let emps = sb.from("employees").select("id, full_name, office_id, avatar_url").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
+  let emps = sb.from("employees").select("id, full_name, office_id, avatar_url, joined_on, exit_date").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
   if (office) emps = emps.eq("office_id", office);
   // calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the range.
   const monthRows = async () => {
-    const all: { date: string; late: boolean }[] = [];
+    const all: { date: string; late: boolean; employee_id: string; full_name: string }[] = [];
     for (let i = 0; ; i += 1000) {
-      let mq = sb.from("attendance_report").select("date, late").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
+      let mq = sb.from("attendance_report").select("date, late, employee_id, full_name").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
       if (office) mq = mq.eq("office_id", office);
+      if (emp) mq = mq.eq("employee_id", emp);
       const { data } = await mq;
       all.push(...(data ?? []));
       if ((data?.length ?? 0) < 1000) return all;
@@ -54,18 +56,27 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   ]);
 
   const cells: Record<string, CalCell> = {};
+  const staff = (people ?? []).filter((p) => !emp || p.id === emp);
+  const nameOf = (id: string) => people?.find((p) => p.id === id)?.full_name ?? "?";
   for (const d of eachDay(from, to)) {
     const day = monthAtt.filter((r) => r.date === d);
-    const away = (monthLeaves ?? []).filter((l) => (!office || (l.employee as { office_id?: string } | null)?.office_id === office) && daysWithin(l.start_date, l.end_date, from, to).includes(d)).length;
-    const q = new URLSearchParams({ ...(office ? { office } : {}), date: d, view, at });
+    const late = day.filter((r) => r.late);
+    const away = (monthLeaves ?? []).filter((l) => (!emp || l.employee_id === emp) && (!office || (l.employee as { office_id?: string } | null)?.office_id === office) && daysWithin(l.start_date, l.end_date, from, to).includes(d));
+    const awayIds = new Set(away.map((l) => l.employee_id));
+    const inIds = new Set(day.map((r) => r.employee_id));
+    // not in = working-day staff (employed that day) with no check-in and no approved leave; weekends/holidays not excluded beyond Sat/Sun
+    const out = d < today && isoDow(d) <= 5 ? staff.filter((p) => !inIds.has(p.id) && !awayIds.has(p.id) && (!p.joined_on || d >= p.joined_on) && (!p.exit_date || d <= p.exit_date)) : [];
+    const names = (rs: { full_name: string }[]) => rs.map((r) => r.full_name).sort();
+    const q = new URLSearchParams({ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date: d, view, at });
     cells[d] = {
       href: `?${q}`,
       off: isoDow(d) > 5,
-      lines: day.length || away ? [
-        { text: `${day.length} in`, tone: "green" as const },
-        ...(day.some((r) => r.late) ? [{ text: `${day.filter((r) => r.late).length} late`, tone: "amber" as const }] : []),
-        ...(away ? [{ text: `${away} on leave`, tone: "muted" as const }] : []),
-      ] : [],
+      lines: [
+        ...(day.length ? [{ text: `${day.length} in`, tone: "green" as const, people: names(day) }] : []),
+        ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: names(late) }] : []),
+        ...(away.length ? [{ text: `${away.length} on leave`, tone: "muted" as const, people: away.map((l) => nameOf(l.employee_id)).sort() }] : []),
+        ...(out.length ? [{ text: `${out.length} not in`, tone: "red" as const, people: names(out) }] : []),
+      ],
     };
   }
   const canReview = me.role === "hr" || me.role === "admin"; // review_regularization() enforces this too
@@ -84,6 +95,10 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     <div className="space-y-6">
       <AutoForm className="flex flex-wrap items-center gap-2">
         <input type="date" name="date" defaultValue={date} className="input w-auto" />
+        <select name="emp" defaultValue={emp ?? ""} className="input w-auto" aria-label="Employee">
+          <option value="">All employees</option>
+          {people?.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+        </select>
         {me.role === "admin" && (
           <select name="office" defaultValue={office ?? ""} className="input w-auto">
             <option value="">All offices</option>
@@ -127,8 +142,8 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
       <section className="card">
         <h2 className="h2"><CalendarDays /> Calendar</h2>
-        <Calendar view={view} at={at} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["muted", "On leave"]]} />
-        <p className="mt-2 text-xs text-muted">Click a day to list who was in below.</p>
+        <Calendar view={view} at={at} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["red", "Not in"], ["muted", "On leave"]]} />
+        <p className="mt-2 text-xs text-muted">Click a number to list the day below, or a chip to see who.</p>
       </section>
 
       <section className="card overflow-x-auto">

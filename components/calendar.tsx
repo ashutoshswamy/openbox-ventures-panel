@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PeopleChip } from "@/components/people-chip";
 import { eachDay, isoDow, shiftView, viewRange, type View } from "@/lib/calendar";
 
 export type Tone = "green" | "blue" | "amber" | "red" | "muted";
-export type CalLine = { text: string; tone?: Tone };
+export type CalLine = { text: string; tone?: Tone; people?: string[] }; // people → chip opens a modal listing them
 export type CalCell = { lines?: CalLine[]; off?: boolean; href?: string };
 
 const CHIP: Record<Tone, string> = { green: "bg-green-soft text-green", blue: "bg-blue-soft text-blue", amber: "bg-amber-soft text-amber", red: "bg-red-soft text-red", muted: "bg-surface-2 text-muted" };
@@ -56,14 +57,17 @@ export function Calendar({
         {days.map((d) => {
           const c = cells[d] ?? {};
           const lines = c.lines ?? [];
-          const num = (
+          const modal = lines.some((l) => l.people); // chips are buttons then, so the cell can't be one big link
+          const chip = (l: CalLine, cls: string) => l.people ? <PeopleChip key={l.text} className={cls} label={l.text} title={`${l.text} · ${fmt(d, { day: "numeric", month: "short" })}`} names={l.people} /> : <span key={l.text} className={cls} title={l.text}>{l.text}</span>;
+          const numEl = (
             <span className={`inline-grid size-6 place-items-center rounded-full tabular-nums ${d === today ? "bg-primary font-semibold text-primary-fg" : "text-muted"}`}>{Number(d.slice(8))}</span>
           );
+          const num = modal && c.href ? <Link href={c.href} className="self-start" aria-label={`Show ${d}`}>{numEl}</Link> : numEl;
           const full = (
             <>
               <span className="flex items-center gap-2 text-muted">{num}{fmt(d, { weekday: view === "day" ? "long" : "short" })}</span>
               <span className="mt-2 flex flex-col gap-1">
-                {lines.map((l, i) => <span key={i} className={`rounded px-2 py-1 ${CHIP[l.tone ?? "muted"]}`}>{l.text}</span>)}
+                {lines.map((l) => chip(l, `rounded px-2 py-1 ${CHIP[l.tone ?? "muted"]}`))}
                 {!lines.length && <span className="text-muted">Nothing</span>}
               </span>
             </>
@@ -72,7 +76,7 @@ export function Calendar({
             <>
               {num}
               <span className="mt-1 hidden flex-col gap-0.5 sm:flex">
-                {lines.slice(0, MAX).map((l, i) => <span key={i} className={`truncate rounded px-1.5 py-0.5 ${CHIP[l.tone ?? "muted"]}`} title={l.text}>{l.text}</span>)}
+                {lines.slice(0, MAX).map((l) => chip(l, `block truncate rounded px-1.5 py-0.5 ${CHIP[l.tone ?? "muted"]}`))}
                 {lines.length > MAX && <span className="px-1.5 text-muted">+{lines.length - MAX} more</span>}
               </span>
               <span className="mt-1 flex flex-wrap gap-0.5 sm:hidden">
@@ -83,7 +87,7 @@ export function Calendar({
           const size = view === "month" ? "min-h-14 p-1.5 sm:min-h-24" : view === "week" ? "min-h-16 p-2 sm:min-h-52" : "min-h-40 p-3 text-sm";
           const cls = `block ${size} ${c.off ? "bg-surface-2/60" : "bg-surface"} ${d === selected ? "ring-2 ring-primary ring-inset" : ""}`;
           const body = view === "month" ? compact : full;
-          return c.href ? <Link key={d} href={c.href} className={`${cls} hover:bg-surface-2`} aria-label={`${d}: ${lines.map((l) => l.text).join(", ") || "nothing"}`}>{body}</Link> : <div key={d} className={cls}>{body}</div>;
+          return c.href && !modal ? <Link key={d} href={c.href} className={`${cls} hover:bg-surface-2`} aria-label={`${d}: ${lines.map((l) => l.text).join(", ") || "nothing"}`}>{body}</Link> : <div key={d} className={cls}>{body}</div>;
         })}
       </div>
       {!!legend?.length && (
