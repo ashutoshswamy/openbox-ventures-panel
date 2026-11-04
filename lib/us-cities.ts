@@ -11,4 +11,9 @@ export const US_CITIES: [string, string, string?][] = [
   ["Chattanooga", "TN", "America/New_York"], ["Fargo", "ND"], ["Sioux Falls", "SD"], ["Rapid City", "SD", "America/Denver"], ["Billings", "MT"], ["Cheyenne", "WY"],
   ["Charleston", "SC"], ["Savannah", "GA"], ["Hartford", "CT"], ["Providence", "RI"], ["Burlington", "VT"], ["Portland", "ME"], ["Manchester", "NH"], ["Newark", "NJ"],
   ["Wilmington", "DE"], ["Charleston", "WV"], ["Washington", "DC"], ["San Juan", "PR"],
+  // Canada
+  ["Toronto", "ON"], ["Montreal", "QC"], ["Vancouver", "BC"], ["Calgary", "AB"], ["Edmonton", "AB"], ["Ottawa", "ON"], ["Winnipeg", "MB"], ["Halifax", "NS"], ["St. John's", "NL"],
+  ["Regina", "SK"], ["Saskatoon", "SK"], ["Victoria", "BC"], ["Quebec City", "QC"], ["Yellowknife", "NT"], ["Whitehorse", "YT"], ["Iqaluit", "NU"], ["Fredericton", "NB"],
+  ["Charlottetown", "PE"], ["Hamilton", "ON"], ["Mississauga", "ON"], ["Brampton", "ON"], ["London", "ON"], ["Kitchener", "ON"], ["Thunder Bay", "ON"], ["Kelowna", "BC"],
+  ["Surrey", "BC"], ["Moncton", "NB"], ["Sherbrooke", "QC"], ["Lloydminster", "AB"], ["Goose Bay", "NL", "America/Goose_Bay"],
 ];

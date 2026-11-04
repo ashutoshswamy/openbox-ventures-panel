@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Moon, Search, Sun, X } from "lucide-react";
 import { MAP_VIEWBOX, US_STATES, type UsState, type ZoneId } from "@/lib/us-states";
+import { CA_PROVINCES, CA_VIEWBOX } from "@/lib/ca-provinces";
 import { US_CITIES } from "@/lib/us-cities";
 
 type Zone = { id: ZoneId; name: string; tz: string; utc: string; color: string };
@@ -13,23 +14,31 @@ const ZONES: Zone[] = [
   { id: "et", name: "Eastern", tz: "America/New_York", utc: "UTC-5", color: "#ec4899" },
   { id: "ak", name: "Alaska", tz: "America/Anchorage", utc: "UTC-9", color: "#14b8a6" },
   { id: "hi", name: "Hawaii", tz: "Pacific/Honolulu", utc: "UTC-10", color: "#ef4444" },
-  { id: "at", name: "Atlantic", tz: "America/Puerto_Rico", utc: "UTC-4", color: "#64748b" },
+  { id: "at", name: "Atlantic", tz: "America/Halifax", utc: "UTC-4", color: "#64748b" },
+  { id: "nl", name: "Newfoundland", tz: "America/St_Johns", utc: "UTC-3:30", color: "#8b5cf6" },
 ];
+type Country = "us" | "ca";
+const COUNTRY_ZONES: Record<Country, ZoneId[]> = { us: ["pt", "mt", "ct", "et", "ak", "hi", "at"], ca: ["pt", "mt", "ct", "et", "at", "nl"] };
 const IN = { name: "India", tz: "Asia/Kolkata" };
 const MAIN: ZoneId[] = ["pt", "mt", "ct", "et"];
 const zoneOf = (id: ZoneId) => ZONES.find((z) => z.id === id)!;
-const TINY = new Set(["DC", "RI", "DE", "CT", "NJ", "MD", "MA", "NH", "VT"]); // too small to label on the map
+const TINY = new Set(["DC", "RI", "DE", "CT", "NJ", "MD", "MA", "NH", "VT", "PE", "NS"]); // too small to label on the map
 
 // Puerto Rico is not drawn on the map, but is searchable and listed
-const ALL: (Omit<UsState, "d" | "c"> & { c?: [number, number]; d?: string })[] = [...US_STATES, { id: "72", name: "Puerto Rico", abbr: "PR", zone: "at" as ZoneId, tz: "America/Puerto_Rico" }].sort((a, b) => a.name.localeCompare(b.name));
+type Region = Omit<UsState, "d" | "c"> & { country: Country };
+const ALL: Region[] = [
+  ...US_STATES.map((s) => ({ ...s, country: "us" as Country })),
+  { id: "72", name: "Puerto Rico", abbr: "PR", zone: "at" as ZoneId, tz: "America/Puerto_Rico", country: "us" as Country },
+  ...CA_PROVINCES.map((s) => ({ ...s, country: "ca" as Country })),
+].sort((a, b) => a.name.localeCompare(b.name));
 
-type Loc = { key: string; title: string; sub: string; tz: string; zone: ZoneId; note?: string; abbr?: string };
-const stateLoc = (s: (typeof ALL)[number]): Loc => ({ key: s.abbr, title: s.name, sub: "State", tz: s.tz, zone: s.zone, note: s.note, abbr: s.abbr });
+type Loc = { key: string; title: string; sub: string; tz: string; zone: ZoneId; note?: string; abbr?: string; country: Country };
+const stateLoc = (s: Region): Loc => ({ key: s.abbr, title: s.name, sub: s.country === "ca" ? "Province or territory" : "State", tz: s.tz, zone: s.zone, note: s.note, abbr: s.abbr, country: s.country });
 const cityLocs: Loc[] = US_CITIES.map(([name, ab, tz]) => {
   const s = ALL.find((x) => x.abbr === ab)!;
   const t = tz ?? s.tz;
   const zone = ZONES.find((z) => z.tz === t)?.id ?? s.zone;
-  return { key: `${name}-${ab}`, title: `${name}, ${ab}`, sub: "City", tz: t, zone, abbr: ab, note: tz ? `Differs from the rest of ${s.name}` : undefined };
+  return { key: `${name}-${ab}`, title: `${name}, ${ab}`, sub: "City", tz: t, zone, abbr: ab, country: s.country, note: tz ? `Differs from the rest of ${s.name}` : undefined };
 });
 
 // UTC offset of a zone at an instant, in minutes
@@ -53,6 +62,7 @@ export function Clocks() {
   const [now, setNow] = useState<Date | null>(null);
   const [h12, setH12] = useState(true);
   const [times, setTimes] = useState(false);
+  const [country, setCountry] = useState<Country>("us");
   const [zoneFilter, setZoneFilter] = useState<ZoneId | null>(null);
   const [hover, setHover] = useState<Loc | null>(null);
   const [sel, setSel] = useState<Loc | null>(null);
@@ -85,14 +95,15 @@ export function Clocks() {
 
   const shown = hover ?? sel;
   const ist = now ? offset(now, IN.tz) : 0, mine = now ? offset(now, me) : 0;
-  const listed = ALL.filter((s) => !zoneFilter || s.zone === zoneFilter);
+  const listed = ALL.filter((s) => s.country === country && (!zoneFilter || s.zone === zoneFilter));
+  const shapes = country === "us" ? US_STATES : CA_PROVINCES;
   const rows = showAll ? listed : listed.slice(0, 12);
   const zn = shown ? zoneOf(shown.zone) : null;
 
-  const pick = (l: Loc) => { setSel(l); setQ(""); setOpen(false); };
+  const pick = (l: Loc) => { setSel(l); setCountry(l.country); setZoneFilter(null); setQ(""); setOpen(false); };
 
   // converter
-  const CONV = [{ id: "in", name: IN.name, tz: IN.tz }, ...ZONES.slice(0, 6).map((z) => ({ id: z.id, name: z.name, tz: z.tz }))];
+  const CONV = [{ id: "in", name: IN.name, tz: IN.tz }, ...ZONES.map((z) => ({ id: z.id, name: z.name, tz: z.tz }))];
   const src = CONV.find((z) => z.id === from)!;
   const picked = date && time ? instant(date, time, src.tz) : null;
 
@@ -119,16 +130,23 @@ export function Clocks() {
       <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
         <section className="card">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="h2 mb-0">US time zone map</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="h2 mb-0">Time zone map</h2>
+              <div className="inline-flex rounded-lg border border-line p-0.5 text-sm" role="group" aria-label="Country">
+                {([["us", "United States"], ["ca", "Canada"]] as const).map(([k, l]) => (
+                  <button key={k} type="button" aria-pressed={country === k} onClick={() => { setCountry(k); setZoneFilter(null); setHover(null); }} className={`rounded-md px-3 py-1 ${country === k ? "bg-primary text-primary-fg" : "text-muted hover:text-text"}`}>{l}</button>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
               <label className="check"><input type="checkbox" checked={!h12} onChange={(e) => setH12(!e.target.checked)} /> 24-hour</label>
               <label className="check"><input type="checkbox" checked={times} onChange={(e) => setTimes(e.target.checked)} /> Times on map</label>
             </div>
           </div>
-          <svg viewBox={MAP_VIEWBOX} role="group" aria-label="Map of US states coloured by time zone" className="h-auto w-full" onMouseLeave={() => setHover(null)}>
-            {US_STATES.map((s) => {
+          <svg viewBox={country === "us" ? MAP_VIEWBOX : CA_VIEWBOX} role="group" aria-label={`Map of ${country === "us" ? "US states" : "Canadian provinces"} coloured by time zone`} className="h-auto w-full" onMouseLeave={() => setHover(null)}>
+            {shapes.map((s) => {
               const z = zoneOf(s.zone), dim = zoneFilter && zoneFilter !== s.zone, on = sel?.abbr === s.abbr || hover?.abbr === s.abbr;
-              const loc = stateLoc(s);
+              const loc = stateLoc(ALL.find((r) => r.abbr === s.abbr)!);
               return (
                 <path
                   key={s.id} d={s.d} role="button" tabIndex={0} aria-label={`${s.name}, ${z.name} time`}
@@ -140,7 +158,7 @@ export function Clocks() {
               );
             })}
             <g className="pointer-events-none select-none" fontSize={times ? 10 : 11} fontWeight={700} textAnchor="middle" fill="#fff" style={{ paintOrder: "stroke", stroke: "rgb(0 0 0 / .35)", strokeWidth: 2.5 }}>
-              {US_STATES.filter((s) => !TINY.has(s.abbr) && (!zoneFilter || zoneFilter === s.zone)).map((s) => (
+              {shapes.filter((s) => !TINY.has(s.abbr) && (!zoneFilter || zoneFilter === s.zone)).map((s) => (
                 <text key={s.abbr} x={s.c[0]} y={s.c[1] + (times ? -1 : 4)}>
                   {s.abbr}
                   {times && now && <tspan x={s.c[0]} dy={11} fontWeight={500} fontSize={9}>{fmt(now, s.tz)}</tspan>}
@@ -149,13 +167,13 @@ export function Clocks() {
             </g>
           </svg>
           <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
-            {ZONES.map((z) => (
+            {ZONES.filter((z) => COUNTRY_ZONES[country].includes(z.id)).map((z) => (
               <li key={z.id}><button type="button" onClick={() => setZoneFilter(zoneFilter === z.id ? null : z.id)} className={`flex items-center gap-1.5 rounded px-1 py-0.5 hover:text-text ${zoneFilter === z.id ? "font-semibold text-text" : ""}`}>
                 <span className="size-2.5 rounded-sm" style={{ background: z.color }} />{z.name} ({z.utc})
               </button></li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-muted">States are coloured by their main zone. Click a state or a zone to focus. Puerto Rico is listed below but not drawn.</p>
+          <p className="mt-2 text-xs text-muted">{country === "us" ? "States" : "Provinces"} are coloured by their main zone, with exceptions noted on click. Click a {country === "us" ? "state" : "province"} or a zone to focus.{country === "us" && " Puerto Rico is listed below but not drawn."}</p>
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
@@ -164,7 +182,7 @@ export function Clocks() {
             <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}>
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
               <input
-                value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Search a state or city" aria-label="Search a state or city" autoComplete="off"
+                value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Search a state, province or city" aria-label="Search a state, province or city" autoComplete="off"
                 onKeyDown={(e) => { if (e.key === "Enter" && results[0]) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape") setOpen(false); }}
                 className="input pl-9"
               />
@@ -204,7 +222,7 @@ export function Clocks() {
 
       <section className="card">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="h2 mb-0">US time now{zoneFilter && <span className="font-normal text-muted"> · {zoneOf(zoneFilter).name}</span>}</h2>
+          <h2 className="h2 mb-0">{country === "us" ? "US" : "Canada"} time now{zoneFilter && <span className="font-normal text-muted"> · {zoneOf(zoneFilter).name}</span>}</h2>
           {zoneFilter && <button type="button" className="btn btn-ghost" onClick={() => setZoneFilter(null)}><X /> Clear filter</button>}
         </div>
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
