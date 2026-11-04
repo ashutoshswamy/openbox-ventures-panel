@@ -7,6 +7,8 @@ import { todaysCelebrations } from "@/lib/pending";
 import { Today } from "@/components/today";
 import { PageHeader } from "@/components/shell";
 import { Attachment } from "@/components/attachment";
+import { CountUp } from "@/components/count-up";
+import { Celebrate } from "@/components/confetti";
 
 export const metadata = { title: "Dashboard" };
 
@@ -15,7 +17,7 @@ export default async function Dashboard() {
   const sb = db();
   const today = todayIn();
   const week = new Date(Date.parse(today) + 7 * 864e5).toISOString().slice(0, 10);
-  const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations, { count: openTodos }] = await Promise.all([
+  const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations, { count: openTodos }, { data: self }] = await Promise.all([
     sb.from("leave_balances").select("leave_type_id, name, balance, entitled, used").eq("employee_id", me.id).order("name"),
     sb.from("messages").select("id, body, attachment_path, created_at, channel:channels!inner(announcements)").eq("channel.announcements", true).order("created_at", { ascending: false }).limit(4),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", me.id).eq("status", "pending"),
@@ -23,6 +25,7 @@ export default async function Dashboard() {
     sb.from("holidays").select("name, date, office_id").gte("date", today).lte("date", week).order("date"),
     todaysCelebrations(),
     sb.from("todos").select("id", { count: "exact", head: true }).eq("owner_id", me.id).is("done_at", null),
+    sb.from("employees").select("joined_on").eq("id", me.id).maybeSingle(),
   ]);
   const daysLeft = (balances ?? []).reduce((n, b) => n + Number(b.balance), 0);
   const nextHoliday = holidays?.find((h) => !h.office_id || h.office_id === me.office_id);
@@ -32,10 +35,18 @@ export default async function Dashboard() {
     ...(nextHoliday ? [{ key: "holiday", href: "/leave", text: `Holiday: ${nextHoliday.name}, ${fmtDate(nextHoliday.date)}` }] : []),
   ];
 
+  // confetti only for me: my own birthday / anniversary, or a first-week welcome
+  const mine = celebrations.find((c) => c.startsWith(`${me.full_name}'s`));
+  const joinedDays = self?.joined_on ? (Date.parse(today) - Date.parse(self.joined_on)) / 864e5 : 99;
+  const party = mine
+    ? { id: mine, title: mine.endsWith("birthday") ? `Happy birthday, ${me.full_name.split(" ")[0]}!` : `Happy work anniversary, ${me.full_name.split(" ")[0]}!`, text: mine.endsWith("birthday") ? "The whole team is wishing you a great day." : "Thank you for being part of Open Box Ventures." }
+    : joinedDays <= 7 ? { id: "welcome", title: `Welcome aboard, ${me.full_name.split(" ")[0]}!`, text: "Glad to have you on the team." } : null;
+
   return (
     <>
       <PageHeader title={`${greeting()}, ${me.full_name.split(" ")[0]}`} sub="Here's your day at a glance." />
       <div className="space-y-6">
+        {party && <Celebrate {...party} />}
         <Today officeId={me.office_id} />
 
         <div className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface">
@@ -45,7 +56,7 @@ export default async function Dashboard() {
             { href: "/leave", n: pending ?? 0, label: "requests pending", note: pending ? "awaiting approval" : "all caught up", warn: !!pending },
           ].map(({ href, n, label, note, warn }) => (
             <Link key={label} href={href} className="px-4 py-3.5 transition-colors first:rounded-l-2xl last:rounded-r-2xl hover:bg-surface-2/60 md:px-5">
-              <p className="text-2xl font-semibold tracking-tight tabular-nums">{n}</p>
+              <p className="text-2xl font-semibold tracking-tight tabular-nums"><CountUp value={n} decimals={Number.isInteger(n) ? 0 : 1} /></p>
               <p className="text-sm">{label}</p>
               <p className={`text-xs ${warn ? "text-amber" : "text-muted"}`}>{note}</p>
             </Link>

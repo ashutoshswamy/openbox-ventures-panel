@@ -163,7 +163,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
               const tz = tzOf(p.office_id);
               return (
                 <tr key={p.id}>
-                  <td><span className="flex items-center gap-2.5 font-medium"><Avatar name={p.full_name} src={p.avatar_url} size="size-8 text-xs" /> {p.full_name}</span></td>
+                  <td><span className="flex items-center gap-2.5 font-medium"><Avatar name={p.full_name} src={p.avatar_url} size="size-8 text-xs" userId={p.id} /> {p.full_name}</span></td>
                   <td>
                     <span className="flex flex-wrap gap-1">
                       {r ? (r.mode === "wfh" ? <span className="badge badge-blue"><House /> Home</span> : <span className="badge badge-green"><Building2 /> Office</span>)

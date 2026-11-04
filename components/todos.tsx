@@ -25,8 +25,8 @@ function Row({ t, showOwner }: { t: Todo; showOwner?: boolean }) {
   const overdue = !t.done_at && !!t.due_on && t.due_on < today;
   const canDelete = !t.assigned_by || t.assigned_by === t.owner_id || showOwner;
   return (
-    <li className="group flex items-center gap-3 py-2.5">
-      <ActionForm action={toggleTodo} keep>
+    <li className="todo group flex items-center gap-3 py-2.5">
+      <ActionForm action={toggleTodo} keep success={false}>
         <input type="hidden" name="id" value={t.id} />
         <button name="done" value={t.done_at ? "0" : "1"} title={t.done_at ? "Mark not done" : "Mark done"} aria-label={`${t.done_at ? "Reopen" : "Complete"}: ${t.title}`} className="grid size-6 cursor-pointer place-items-center rounded-full text-muted transition-colors hover:text-text">
           {t.done_at ? <CircleCheck className="size-5 text-green" /> : <Circle className="size-5" />}
@@ -34,14 +34,14 @@ function Row({ t, showOwner }: { t: Todo; showOwner?: boolean }) {
       </ActionForm>
       {showOwner && t.owner && <Avatar name={t.owner.full_name} src={t.owner.avatar_url} size="size-7 text-[11px]" />}
       <div className="min-w-0 flex-1">
-        <p className={`text-[15px] leading-snug break-words ${t.done_at ? "text-muted line-through" : ""}`}>{t.title}</p>
+        <p className={`todo-title text-[15px] leading-snug break-words ${t.done_at ? "text-muted line-through" : ""}`}>{t.title}</p>
         {(showOwner || t.assigner) && <p className="text-xs text-muted">{showOwner ? t.owner?.full_name : `From ${t.assigner!.full_name}`}</p>}
       </div>
       {t.due_on && !t.done_at && (
         <span className={`shrink-0 text-xs tabular-nums ${overdue ? "font-medium text-red" : t.due_on === today ? "font-medium text-amber" : "text-muted"}`}>{dueLabel(t.due_on, today)}</span>
       )}
       {canDelete && (
-        <ActionForm action={deleteTodo} confirm={t.assigned_by ? "Withdraw this task?" : undefined}>
+        <ActionForm action={deleteTodo} success="Task deleted" confirm={t.assigned_by ? "Withdraw this task?" : undefined}>
           <input type="hidden" name="id" value={t.id} />
           <button className="btn btn-ghost btn-icon btn-danger h-7 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100" title="Delete" aria-label={`Delete: ${t.title}`}><Trash2 /></button>
         </ActionForm>
@@ -113,7 +113,7 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
       <PageHeader title="To-do" sub={sub} />
       <div className={assign ? "grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_22rem]" : "max-w-2xl"}>
         <div>
-          <ActionForm action={addTodo} className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 pl-4 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10 sm:flex-nowrap">
+          <ActionForm action={addTodo} success="Task added" className="mb-8 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 pl-4 transition focus-within:border-text/40 focus-within:ring-3 focus-within:ring-text/10 sm:flex-nowrap">
             <label className="sr-only" htmlFor="new-task">New task</label>
             <input id="new-task" name="title" required maxLength={300} autoComplete="off" placeholder="Add a task" aria-label="Add a task" className="h-10 min-w-0 flex-1 basis-full bg-transparent text-[15px] outline-none placeholder:text-muted sm:basis-auto" />
             <label className="sr-only" htmlFor="new-due">Due date</label>

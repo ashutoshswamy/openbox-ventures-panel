@@ -12,7 +12,7 @@ const TONE: Record<Shown, string> = {
 };
 
 export function Dot({ s, className = "size-2.5" }: { s: Shown; className?: string }) {
-  return <span aria-hidden className={`inline-block shrink-0 rounded-full ${TONE[s]} ${className}`} />;
+  return <span aria-hidden className={`inline-block shrink-0 rounded-full ${TONE[s]} ${s === "online" ? "dot-live" : ""} ${className}`} />;
 }
 
 // Corner badge on an avatar. Own status shows too (you appear online to others while this tab is open).

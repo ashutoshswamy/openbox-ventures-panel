@@ -14,7 +14,7 @@ export function SidebarToggle() {
     document.cookie = `sidebar=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
   };
   return (
-    <button type="button" onClick={flip} className="btn btn-ghost btn-icon hidden lg:inline-flex" aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar">
+    <button type="button" onClick={flip} className="btn btn-ghost btn-icon hidden lg:inline-flex" aria-label="Collapse or expand sidebar" title="Collapse or expand sidebar ( [ )">
       <PanelLeftClose className={`${C}:hidden`} />
       <PanelLeftOpen className={`hidden ${C}:block`} />
     </button>

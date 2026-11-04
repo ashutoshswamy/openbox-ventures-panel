@@ -6,6 +6,7 @@ import { todayIn } from "@/lib/util";
 import { onShift, shiftDay } from "@/lib/calendar";
 import { pendingCounts } from "@/lib/pending";
 import { PageHeader } from "@/components/shell";
+import { CountUp } from "@/components/count-up";
 
 export const metadata = { title: "Overview" };
 
@@ -60,19 +61,19 @@ export default async function AdminHome() {
       <div className="space-y-8">
         <section aria-label="Today at a glance">
           <p className="max-w-2xl text-2xl leading-snug font-semibold tracking-[-0.02em] text-balance md:text-[28px]">
-            <span className="tabular-nums">{present}</span> of <span className="tabular-nums">{sum("total")}</span> people are in.{" "}
+            <CountUp value={present} /> of <CountUp value={sum("total")} /> people are in.{" "}
             <span className="text-muted">
-              {sum("absent") > 0 ? `${sum("absent")} haven't checked in` : "Everyone has checked in"}
-              {sum("leave") > 0 && `, ${sum("leave")} on leave`}
-              {sum("late") > 0 && `, ${sum("late")} late`}.
+              {sum("absent") > 0 ? <><CountUp value={sum("absent")} /> haven&apos;t checked in</> : "Everyone has checked in"}
+              {sum("leave") > 0 && <>, <CountUp value={sum("leave")} /> on leave</>}
+              {sum("late") > 0 && <>, <CountUp value={sum("late")} /> late</>}.
             </span>
           </p>
-          <div className="mt-5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={KINDS.map((k) => `${sum(k.key)} ${k.label.toLowerCase()}`).join(", ")}>
+          <div className="meter mt-5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={KINDS.map((k) => `${sum(k.key)} ${k.label.toLowerCase()}`).join(", ")}>
             {KINDS.map(({ key, bar }) => (sum("total") && sum(key) ? <div key={key} className={bar} style={{ width: `${(sum(key) / sum("total")) * 100}%` }} /> : null))}
           </div>
           <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
             {KINDS.map(({ key, label, bar }) => (
-              <li key={key} className="flex items-center gap-1.5"><span className={`size-2 rounded-full ${bar}`} /><b className="font-semibold text-text tabular-nums">{sum(key)}</b> {label.toLowerCase()}</li>
+              <li key={key} className="flex items-center gap-1.5"><span className={`size-2 rounded-full ${bar}`} /><b className="font-semibold text-text tabular-nums"><CountUp value={sum(key)} /></b> {label.toLowerCase()}</li>
             ))}
           </ul>
         </section>
@@ -113,7 +114,7 @@ export default async function AdminHome() {
                       </div>
                       <dl className="flex gap-4 text-xs text-muted tabular-nums md:w-56 md:justify-end">
                         {KINDS.map(({ key, label, bar }) => (
-                          <div key={key} title={label} className="flex items-center gap-1.5"><span className={`size-1.5 rounded-full ${bar}`} /><dd className="font-semibold text-text">{s[key]}</dd></div>
+                          <div key={key} title={label} className="flex items-center gap-1.5"><span className={`size-1.5 rounded-full ${bar}`} /><dd className="font-semibold text-text"><CountUp value={s[key]} /></dd></div>
                         ))}
                       </dl>
                     </Link>

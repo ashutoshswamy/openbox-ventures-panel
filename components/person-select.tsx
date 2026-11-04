@@ -31,7 +31,7 @@ export function PersonSelect({ name, options, defaultValue = "", empty, placehol
     <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) { setOpen(false); setQ(null); } }}>
       <input ref={hidden} type="hidden" name={name} defaultValue={id} />
       <input
-        ref={text} value={shown} placeholder={placeholder} aria-label={ariaLabel} required={required} autoComplete="off" role="combobox" aria-expanded={open}
+        ref={text} value={shown} placeholder={placeholder} aria-label={ariaLabel} required={required} autoComplete="off" role="combobox" aria-expanded={open} aria-controls="person-options"
         className={className}
         onFocus={(e) => { setOpen(true); e.currentTarget.select(); }}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
@@ -41,7 +41,7 @@ export function PersonSelect({ name, options, defaultValue = "", empty, placehol
         }}
       />
       {open && (
-        <ul className="absolute z-30 mt-1 max-h-60 min-w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 text-sm shadow-lg" role="listbox">
+        <ul className="absolute z-30 mt-1 max-h-60 min-w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 text-sm shadow-lg" role="listbox" id="person-options">
           {list.map((o) => (
             <li key={o.id || "none"}>
               <button type="button" role="option" aria-selected={o.id === id} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(o)}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { sileo } from "sileo";
 import { useRouter } from "next/navigation";
-import { Building2, CircleAlert, CircleCheckBig, House, LoaderCircle, LogOut } from "lucide-react";
+import { Building2, CircleCheckBig, House, LogOut } from "lucide-react";
 import { checkIn, checkOut } from "@/app/(employee)/actions";
 
 function position(): Promise<GeolocationCoordinates> {
@@ -22,25 +23,32 @@ const REPORT_LABEL: Record<ReportKind, string> = {
 };
 
 export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; due?: ReportKind[] }) {
-  const [error, setError] = useState<string | null>(null);
   const [reporting, setReporting] = useState(false);
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [busy, setBusy] = useState<string | null>(null); // which button shows the spinner
 
-  const run = (fn: () => Promise<string | void | null>) =>
+  // ok = toast title on success, fail = toast title on error. Errors name the problem in the description.
+  const run = (key: string, ok: { title: string; description: string }, fail: string, fn: () => Promise<string | void | null>) =>
     start(async () => {
+      setBusy(key);
       try {
         const err = (await fn()) || null;
-        setError(err);
-        if (err?.includes("required to check out")) router.refresh(); // office just turned reports on: reload which ones are due
+        if (err) {
+          sileo.error({ title: fail, description: err });
+          if (err.includes("required to check out")) router.refresh(); // office just turned reports on: reload which ones are due
+        } else sileo.success(ok);
       } catch (e) {
-        setError((e as Error).message);
+        sileo.error({ title: fail, description: (e as Error).message });
       }
+      setBusy(null);
     });
+  const clock = () => new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  const spin = (k: string) => (busy === k && pending ? { "data-loading": "" } : {});
 
   if (status === "out")
     return (
-      <p className="flex items-center gap-2 text-sm font-medium text-green">
+      <p className="pop flex items-center gap-2 text-sm font-medium text-green">
         <CircleCheckBig className="size-5" /> Day complete
       </p>
     );
@@ -53,7 +61,7 @@ export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; d
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.currentTarget);
-          run(() => checkOut(Object.fromEntries(due.map((k) => [k, String(fd.get(k) ?? "")]))));
+          run("out", { title: "Checked out", description: `${clock()}. Your report was saved.` }, "Couldn't check out", () => checkOut(Object.fromEntries(due.map((k) => [k, String(fd.get(k) ?? "")]))));
         }}
       >
         {due.map((k) => (
@@ -62,27 +70,24 @@ export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; d
           </label>
         ))}
         <div className="flex flex-wrap items-center gap-2">
-          <button className="btn btn-primary h-11 px-5" disabled={pending}><LogOut /> Submit & check out</button>
+          <button className="btn btn-primary h-11 px-5" disabled={pending} {...spin("out")}><LogOut /> Submit & check out</button>
           <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => setReporting(false)}>Cancel</button>
-          {pending && <LoaderCircle className="size-5 animate-spin text-muted" />}
         </div>
-        {error && <p className="error"><CircleAlert className="size-4" /> {error}</p>}
       </form>
     );
 
   return (
     <div className="flex flex-col gap-2 lg:items-end">
       <div className="flex flex-wrap gap-2">
-        {pending && <LoaderCircle className="size-5 animate-spin self-center text-muted" />}
         {status === "none" ? (
           <>
-            <button className="btn btn-primary h-11 px-5" disabled={pending} onClick={() => run(async () => {
+            <button className="btn btn-primary h-11 px-5" disabled={pending} {...spin("office")} onClick={() => run("office", { title: "Checked in", description: `${clock()} at the office. Have a good day.` }, "Couldn't check in", async () => {
               const c = await position();
               return checkIn("office", c.latitude, c.longitude);
             })}>
               <Building2 /> Check in at office
             </button>
-            <button className="btn h-11 px-5" disabled={pending} onClick={() => run(async () => {
+            <button className="btn h-11 px-5" disabled={pending} {...spin("wfh")} onClick={() => run("wfh", { title: "Checked in", description: `${clock()} from home. Have a good day.` }, "Couldn't check in", async () => {
               const c = await position().catch(() => null);
               return checkIn("wfh", c?.latitude, c?.longitude);
             })}>
@@ -90,12 +95,11 @@ export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; d
             </button>
           </>
         ) : (
-          <button className="btn btn-primary h-11 px-5" disabled={pending} onClick={() => (due.length ? setReporting(true) : run(() => checkOut()))}>
+          <button className="btn btn-primary h-11 px-5" disabled={pending} {...spin("out")} onClick={() => (due.length ? setReporting(true) : run("out", { title: "Checked out", description: `${clock()}. See you tomorrow.` }, "Couldn't check out", () => checkOut()))}>
             <LogOut /> Check out
           </button>
         )}
       </div>
-      {error && <p className="error lg:justify-end"><CircleAlert className="size-4" /> {error}</p>}
     </div>
   );
 }

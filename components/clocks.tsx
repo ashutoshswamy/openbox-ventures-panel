@@ -75,6 +75,7 @@ export function Clocks() {
   const [time, setTime] = useState("10:00");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser timezone and clock are only known after mount
     setMe(Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata");
     setDate(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date()));
     const tick = () => setNow(new Date());

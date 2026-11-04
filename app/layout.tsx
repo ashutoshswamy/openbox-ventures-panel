@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import { KeyboardHints } from "@/components/keyboard-hints";
+import { AppToaster } from "@/components/toaster";
+import "sileo/styles.css";
+import { Tooltips } from "@/components/tooltips";
 import { headers } from "next/headers";
 import { DM_Sans } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -78,6 +82,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           }}
         >
           {children}
+          <Tooltips />
+          <AppToaster />
+          <KeyboardHints />
         </ClerkProvider>
       </body>
     </html>

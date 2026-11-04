@@ -10,6 +10,7 @@ import { GlobalSearch } from "./search";
 import { Pwa } from "./pwa";
 import { StatusPicker } from "./status-dot";
 import { SidebarToggle } from "./sidebar-toggle";
+import { ShortcutsButton } from "./keyboard-hints";
 import { cookies } from "next/headers";
 
 function Logo({ panel }: { panel: string }) {
@@ -64,7 +65,7 @@ export async function Shell({
       </aside>
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-6 outline-none md:px-10 md:py-10 lg:pt-4">
         {/* own row, not absolute: would collide with PageHeader actions on the right */}
-        <div className="mb-4 hidden items-center justify-end gap-2 lg:flex"><Pwa /><ThemeToggle /></div>
+        <div className="mb-4 hidden items-center justify-end gap-2 lg:flex"><Pwa /><ShortcutsButton /><ThemeToggle /></div>
         <div className="rise mx-auto max-w-6xl">{children}</div>
       </main>
     </div>

@@ -4,6 +4,7 @@ import { hrPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { todayIn } from "@/lib/util";
 import { onShift, shiftDay } from "@/lib/calendar";
+import { CountUp } from "@/components/count-up";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Overview" };
@@ -48,10 +49,10 @@ export default async function HrHome() {
       <div className="space-y-8">
         <Link href="/hr/attendance" className="group block" aria-label="Open today's attendance">
           <p className="max-w-2xl text-2xl leading-snug font-semibold tracking-[-0.02em] text-balance md:text-[28px]">
-            <span className="tabular-nums">{present.size}</span> of <span className="tabular-nums">{headcount ?? 0}</span> people are in.{" "}
+            <CountUp value={present.size} /> of <CountUp value={headcount ?? 0} /> people are in.{" "}
             <span className="text-muted">{notIn > 0 ? `${notIn} haven't checked in` : "Everyone has checked in"}{away.size > 0 && `, ${away.size} on leave`}.</span>
           </p>
-          <div className="mt-5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${present.size} present, ${away.size} on leave, ${notIn} not checked in`}>
+          <div className="meter mt-5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface-2" role="img" aria-label={`${present.size} present, ${away.size} on leave, ${notIn} not checked in`}>
             {[[present.size, "bg-green"], [away.size, "bg-amber"], [notIn, "bg-line"]].map(([n, bar]) => (headcount && n ? <div key={bar as string} className={bar as string} style={{ width: `${((n as number) / headcount) * 100}%` }} /> : null))}
           </div>
         </Link>
