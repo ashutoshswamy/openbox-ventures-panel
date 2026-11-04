@@ -9,12 +9,14 @@ import { LiveRefresh } from "./live-refresh";
 import { GlobalSearch } from "./search";
 import { Pwa } from "./pwa";
 import { StatusPicker } from "./status-dot";
+import { SidebarToggle } from "./sidebar-toggle";
+import { cookies } from "next/headers";
 
 function Logo({ panel }: { panel: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <Mark size={36} />
-      <div className="min-w-0 leading-tight">
+      <div className="min-w-0 leading-tight group-data-[collapsed=true]/shell:lg:hidden">
         <div className="truncate text-[15px] font-semibold tracking-tight lg:whitespace-normal">Open Box Ventures LLP</div>
         <div className="text-xs text-muted">{panel}</div>
       </div>
@@ -22,7 +24,7 @@ function Logo({ panel }: { panel: string }) {
   );
 }
 
-export function Shell({
+export async function Shell({
   panel,
   links,
   user,
@@ -35,26 +37,28 @@ export function Shell({
   user: { id: string; name: string; role: string; avatar: string | null };
   children: React.ReactNode;
 }) {
+  const collapsed = (await cookies()).get("sidebar")?.value === "1";
   return (
-    <div className="flex min-h-dvh w-full min-w-0 flex-1 flex-col lg:flex-row">
+    <div data-shell data-collapsed={collapsed ? "true" : "false"} className="group/shell flex min-h-dvh w-full min-w-0 flex-1 flex-col lg:flex-row">
       <a href="#main" className="skip">Skip to content</a>
       <AvatarSync stored={user.avatar} />
       <LiveRefresh meId={user.id} meName={user.name} />
-      <aside className="sticky top-0 z-10 min-w-0 border-b border-line bg-bg/85 backdrop-blur lg:h-dvh lg:w-60 lg:shrink-0 lg:border-r lg:border-b-0 lg:bg-bg">
+      <aside className="sticky top-0 z-10 min-w-0 border-b border-line bg-bg/85 backdrop-blur lg:h-dvh lg:w-60 lg:shrink-0 lg:transition-[width] lg:duration-200 group-data-[collapsed=true]/shell:lg:w-[72px] lg:border-r lg:border-b-0 lg:bg-bg">
         <div className="flex h-full flex-col gap-5 lg:p-3">
-          <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:px-2 lg:pt-2">
+          <div className="flex items-center justify-between gap-3 px-4 pt-3 lg:px-2 lg:pt-2 group-data-[collapsed=true]/shell:lg:flex-col group-data-[collapsed=true]/shell:lg:px-0">
             <Logo panel={panel} />
+            <SidebarToggle />
             <div className="flex shrink-0 items-center gap-2 lg:hidden"><Pwa /><StatusPicker compact /><ThemeToggle /><UserMenu switchTo={switchTo} /></div>
           </div>
           <div className="-mb-3 px-3 lg:mb-0 lg:px-0"><GlobalSearch links={links} /></div>
           <Nav links={links} />
-          <div className="mt-auto hidden items-center gap-3 rounded-xl border border-line bg-surface p-2.5 lg:flex">
+          <div className="mt-auto hidden items-center gap-3 rounded-xl border border-line bg-surface p-2.5 lg:flex group-data-[collapsed=true]/shell:lg:justify-center group-data-[collapsed=true]/shell:lg:p-1.5">
             <UserMenu switchTo={switchTo} />
-            <div className="min-w-0 leading-tight">
+            <div className="min-w-0 leading-tight group-data-[collapsed=true]/shell:lg:hidden">
               <div className="truncate text-sm font-medium">{user.name}</div>
               <div className="text-xs text-muted capitalize">{user.role === "hr" ? "HR" : user.role.replace("_", " ")}</div>
             </div>
-            <div className="ml-auto"><StatusPicker compact /></div>
+            <div className="ml-auto group-data-[collapsed=true]/shell:lg:hidden"><StatusPicker compact /></div>
           </div>
         </div>
       </aside>
