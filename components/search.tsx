@@ -46,7 +46,7 @@ export function GlobalSearch({ links }: { links: NavLink[] }) {
   return (
     <>
       <button type="button" onClick={() => dialog.current?.showModal()} title="Search (Ctrl or ⌘ + K, or /)" className="btn btn-ghost w-full justify-start text-muted group-data-[collapsed=true]/shell:lg:justify-center" aria-keyshortcuts="Control+K Meta+K">
-        <SearchIcon /> <span className="group-data-[collapsed=true]/shell:lg:hidden">Search</span> <kbd data-k="k" className="kbd ml-auto hidden lg:inline group-data-[collapsed=true]/shell:lg:hidden">⌘K</kbd>
+        <SearchIcon /> <span className="group-data-[collapsed=true]/shell:lg:hidden">Search</span> <kbd data-k="k" className="kbd ml-auto hidden lg:inline-block group-data-[collapsed=true]/shell:lg:hidden">⌘K</kbd>
       </button>
       <dialog
         ref={dialog}
