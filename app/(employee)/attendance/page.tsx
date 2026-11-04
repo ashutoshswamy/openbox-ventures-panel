@@ -61,7 +61,7 @@ export default async function Attendance({ searchParams }: PageProps<"/attendanc
     <>
       <PageHeader title="Attendance" sub="Check in each day and review your history." />
       <div className="space-y-6">
-        <Today officeId={me.office_id} />
+        <Today officeId={me.office_id} workMode={me.work_mode} />
 
         <section className="card">
           <h2 className="h2"><CalendarDays /> Calendar</h2>

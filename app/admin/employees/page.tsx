@@ -18,7 +18,7 @@ export const metadata = { title: "Employees" };
 type Emp = {
   id: string; email: string; full_name: string; clerk_user_id: string | null; office_id: string | null;
   department_id: string | null; designation: string | null; joined_on: string | null; active: boolean; avatar_url: string | null;
-  employee_code: string | null; alias_name: string | null; exit_date: string | null; reports_to: string | null;
+  employee_code: string | null; alias_name: string | null; exit_date: string | null; reports_to: string | null; work_mode?: "office" | "wfh";
 };
 type Opt = { id: string; name: string; office_id?: string };
 
@@ -57,6 +57,12 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
         </select>
       </label>
       <label className="field">Designation<input name="designation" defaultValue={e?.designation ?? ""} className="input" /></label>
+      <label className="field">Where do they work?
+        <select name="work_mode" defaultValue={e?.work_mode ?? "office"} className="input">
+          <option value="office">In office (one Check in button, location required)</option>
+          <option value="wfh">Work from home (can check in from office or home)</option>
+        </select>
+      </label>
       {e && people && (
         <label className="field">Reports to
           <PersonSelect name="reports_to" defaultValue={e.reports_to} empty="-" options={people.filter((p) => p.id !== e.id).map((p) => ({ id: p.id, label: p.name }))} />

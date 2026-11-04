@@ -156,6 +156,7 @@ export async function inviteEmployee(fd: FormData) {
       full_name: str(fd, "full_name"),
       designation: str(fd, "designation"),
       joined_on: joined, // blank → set on first sign-in
+      work_mode: str(fd, "work_mode") === "wfh" ? "wfh" : "office",
       ...(await placement(fd)),
     }).select("id").single();
     if (error) return error.code === "23505" ? (error.message.includes("employee_code") ? "Two invites took the same employee code, send it again" : "Employee with this email already exists") : error.message;
@@ -176,7 +177,7 @@ export async function updateEmployee(fd: FormData) {
     const sb = db();
     const { data: emp, error } = await sb
       .from("employees")
-      .update({ full_name: str(fd, "full_name"), designation: str(fd, "designation"), joined_on: str(fd, "joined_on"), exit_date: str(fd, "exit_date"), reports_to: str(fd, "reports_to"), ...(await placement(fd)) })
+      .update({ full_name: str(fd, "full_name"), designation: str(fd, "designation"), joined_on: str(fd, "joined_on"), exit_date: str(fd, "exit_date"), reports_to: str(fd, "reports_to"), work_mode: str(fd, "work_mode") === "wfh" ? "wfh" : "office", ...(await placement(fd)) })
       .eq("id", id)
       .select("email, clerk_user_id")
       .single();

@@ -15,10 +15,11 @@ export type Me = {
   department_id: string | null;
   onboarded: boolean; // filled the personal details form
   avatar_url: string | null; // Clerk profile photo copy
+  work_mode: "office" | "wfh"; // office: one geofenced Check in button; wfh: office or home buttons
 };
 export type Assigned = Me & { role: Role };
 
-const cols = "id, email, full_name, alias_name, office_id, department_id, role, avatar_url, profile:employee_profiles(employee_id)";
+const cols = "id, email, full_name, alias_name, office_id, department_id, role, avatar_url, work_mode, profile:employee_profiles(employee_id)";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const toMe = ({ profile, ...e }: any, role: Role | null): Me => ({ ...e, role, onboarded: !!profile });

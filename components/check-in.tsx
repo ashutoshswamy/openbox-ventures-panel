@@ -22,7 +22,7 @@ const REPORT_LABEL: Record<ReportKind, string> = {
   monthly: "Monthly summary: what did you get done this month?",
 };
 
-export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; due?: ReportKind[] }) {
+export function CheckIn({ status, due = [], canWfh = true }: { status: "none" | "in" | "out"; due?: ReportKind[]; canWfh?: boolean }) {
   const [reporting, setReporting] = useState(false);
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -85,14 +85,14 @@ export function CheckIn({ status, due = [] }: { status: "none" | "in" | "out"; d
               const c = await position();
               return checkIn("office", c.latitude, c.longitude);
             })}>
-              <Building2 /> Check in at office
+              {canWfh ? <><Building2 /> Check in at office</> : <><Building2 /> Check in</>}
             </button>
-            <button className="btn h-11 px-5" disabled={pending} {...spin("wfh")} onClick={() => run("wfh", { title: "Checked in", description: `${clock()} from home. Have a good day.` }, "Couldn't check in", async () => {
+            {canWfh && <button className="btn h-11 px-5" disabled={pending} {...spin("wfh")} onClick={() => run("wfh", { title: "Checked in", description: `${clock()} from home. Have a good day.` }, "Couldn't check in", async () => {
               const c = await position().catch(() => null);
               return checkIn("wfh", c?.latitude, c?.longitude);
             })}>
               <House /> Work from home
-            </button>
+            </button>}
           </>
         ) : (
           <button className="btn btn-primary h-11 px-5" disabled={pending} {...spin("out")} onClick={() => (due.length ? setReporting(true) : run("out", { title: "Checked out", description: `${clock()}. See you tomorrow.` }, "Couldn't check out", () => checkOut()))}>

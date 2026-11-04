@@ -52,7 +52,7 @@ export default async function Dashboard() {
       <PageHeader title={`${greeting()}, ${me.full_name.split(" ")[0]}`} sub="Here's your day at a glance." />
       <div className="space-y-6">
         {party && <Celebrate {...party} />}
-        <Today officeId={me.office_id} />
+        <Today officeId={me.office_id} workMode={me.work_mode} />
 
         <div className="grid grid-cols-3 divide-x divide-line rounded-2xl border border-line bg-surface">
           {[

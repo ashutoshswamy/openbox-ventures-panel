@@ -5,7 +5,7 @@ import { CheckIn, type ReportKind } from "./check-in";
 import { Workday } from "./workday";
 
 // Today's attendance: live workday clock + check-in/out.
-export async function Today({ officeId }: { officeId: string | null }) {
+export async function Today({ officeId, workMode = "wfh" }: { officeId: string | null; workMode?: "office" | "wfh" }) {
   const sb = db();
   const [{ data: shift }, { data: office }] = await Promise.all([
     sb.rpc("my_shift"),
@@ -40,7 +40,7 @@ export async function Today({ officeId }: { officeId: string | null }) {
           checkIn={a?.check_in_at}
           checkOut={a?.check_out_at}
         />
-        <CheckIn status={status} due={due} />
+        <CheckIn status={status} due={due} canWfh={workMode === "wfh"} />
       </div>
     </section>
   );
