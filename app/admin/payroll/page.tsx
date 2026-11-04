@@ -1,26 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calculator, ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
-import { breakdown, daysIn, inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
+import { inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
 import { type Bank, BankForm, BankLock, BankUnlock, maskAcct } from "@/components/bank-form";
 import { Secret } from "@/components/secret";
 import { bankUnlocked } from "@/lib/bank-unlock";
 import { PageHeader } from "@/components/shell";
-import { SalaryBreakdown } from "@/components/salary-breakdown";
+import { SalaryCalculator } from "@/components/salary-calculator";
 import { addSalary, clearSalaries, createRun } from "./actions";
 import { allowBankEdit } from "@/app/profile/bank-actions";
 
 export const metadata = { title: "Payroll" };
 
-export default async function Payroll({ searchParams }: PageProps<"/admin/payroll">) {
+export default async function Payroll() {
   const me = await staffPage();
   if (me.role !== "admin" && me.role !== "hr") redirect("/admin"); // managers: no payroll
   const admin = me.role === "admin";
-  const sp = await searchParams;
   const sb = db();
   const today = todayIn();
   const unlocked = await bankUnlocked(me.id); // bank values only after password re-entry
@@ -35,15 +34,9 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
     sb.from("employee_bank").select<string, Bank & { employee_id: string }>(unlocked ? "*" : "employee_id, employee_can_edit, edit_requested_at"),
   ]);
 
-  // calculator (GET form, computed on the server)
-  const ctc = Number(sp.ctc) || 0;
-  const cm = String(sp.cmonth || today.slice(0, 7));
-  const [cy, cmo] = cm.split("-").map(Number);
-  const calc = ctc > 0 ? breakdown(ctc, { month: cmo, daysInMonth: daysIn(cy, cmo), lopDays: Number(sp.lop) || 0, tds: Number(sp.tds) || 0, other: Number(sp.other) || 0 }) : null;
-
   return (
     <>
-      <PageHeader title="Payroll" sub="Salaries, increments, bank details and monthly salary sheets" />
+      <PageHeader title="Payroll" sub="Salaries, increments, bank details and monthly salary sheets"><SalaryCalculator month={today.slice(0, 7)} /></PageHeader>
       <div className="space-y-6">
         <section className="card">
           <h2 className="h2"><Wallet /> Salary sheets</h2>
@@ -167,19 +160,6 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
             </ActionForm>
           </section>
         )}
-
-        <section className="card">
-          <h2 className="h2"><Calculator /> Salary calculator</h2>
-          <form className="flex flex-wrap items-end gap-2">
-            <label className="field">Annual CTC (₹)<input name="ctc" type="number" min="1" step="0.01" required defaultValue={ctc || ""} className="input w-40" /></label>
-            <label className="field">Month<input type="month" name="cmonth" defaultValue={cm} className="input w-auto" /></label>
-            <label className="field">LOP days<input name="lop" type="number" min="0" step="0.5" defaultValue={sp.lop ? String(sp.lop) : ""} className="input w-24" /></label>
-            <label className="field">TDS<input name="tds" type="number" min="0" defaultValue={sp.tds ? String(sp.tds) : ""} className="input w-28" /></label>
-            <label className="field">Other deductions<input name="other" type="number" min="0" defaultValue={sp.other ? String(sp.other) : ""} className="input w-28" /></label>
-            <button className="btn">Calculate</button>
-          </form>
-          {calc && <div className="mt-4 max-w-md"><SalaryBreakdown p={calc} /></div>}
-        </section>
       </div>
     </>
   );
