@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { PeopleChip } from "@/components/people-chip";
+import { PeopleChip, type Person } from "@/components/people-chip";
 import { eachDay, isoDow, shiftView, viewRange, type View } from "@/lib/calendar";
 
 export type Tone = "green" | "blue" | "amber" | "red" | "muted";
-export type CalLine = { text: string; tone?: Tone; people?: string[] }; // people → chip opens a modal listing them
+export type CalLine = { text: string; tone?: Tone; people?: Person[] }; // people → chip opens a modal listing them
 export type CalCell = { lines?: CalLine[]; off?: boolean; href?: string };
 
 const CHIP: Record<Tone, string> = { green: "bg-green-soft text-green", blue: "bg-blue-soft text-blue", amber: "bg-amber-soft text-amber", red: "bg-red-soft text-red", muted: "bg-surface-2 text-muted" };
@@ -58,7 +58,7 @@ export function Calendar({
           const c = cells[d] ?? {};
           const lines = c.lines ?? [];
           const modal = lines.some((l) => l.people); // chips are buttons then, so the cell can't be one big link
-          const chip = (l: CalLine, cls: string) => l.people ? <PeopleChip key={l.text} className={cls} label={l.text} title={`${l.text} · ${fmt(d, { day: "numeric", month: "short" })}`} names={l.people} /> : <span key={l.text} className={cls} title={l.text}>{l.text}</span>;
+          const chip = (l: CalLine, cls: string) => l.people ? <PeopleChip key={l.text} className={cls} label={l.text} date={fmt(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} dot={DOT[l.tone ?? "muted"]} people={l.people} /> : <span key={l.text} className={cls} title={l.text}>{l.text}</span>;
           const numEl = (
             <span className={`inline-grid size-6 place-items-center rounded-full tabular-nums ${d === today ? "bg-primary font-semibold text-primary-fg" : "text-muted"}`}>{Number(d.slice(8))}</span>
           );

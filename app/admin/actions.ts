@@ -5,7 +5,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { requireAdmin, requireStaff, type Role } from "@/lib/me";
 import { parseProfile } from "@/lib/profile";
 import { adminDb, db } from "@/lib/supabase";
-import { DEFAULT_TZ, SITE_URL, str, zonedIso } from "@/lib/util";
+import { DEFAULT_TZ, SITE_URL, str, todayIn, zonedIso } from "@/lib/util";
 
 // Writes go through db() (user's token), so RLS double-checks every require*() below.
 
@@ -148,15 +148,21 @@ export async function inviteEmployee(fd: FormData) {
   try {
     const email = str(fd, "email")?.toLowerCase();
     if (!email) return "Email required";
-    const { error } = await db().from("employees").insert({
+    const ctc = Number(str(fd, "annual_ctc") ?? 0);
+    if (str(fd, "annual_ctc") && !(ctc > 0)) return "Enter a valid annual CTC";
+    const joined = str(fd, "joined_on");
+    const { data: created, error } = await db().from("employees").insert({
       email,
       full_name: str(fd, "full_name"),
       designation: str(fd, "designation"),
-      joined_on: str(fd, "joined_on"), // blank → set on first sign-in
+      joined_on: joined, // blank → set on first sign-in
       ...(await placement(fd)),
-    });
+    }).select("id").single();
     if (error) return error.code === "23505" ? (error.message.includes("employee_code") ? "Two invites took the same employee code, send it again" : "Employee with this email already exists") : error.message;
+    // opening salary revision, effective from the joining date (or today)
+    const salaryErr = ctc > 0 ? (await db().rpc("add_salary", { p_emp: created!.id, p_ctc: ctc, p_from: joined ?? todayIn(), p_note: "Joining salary" })).error?.message : null;
     await invite(email);
+    if (salaryErr) return `Invited, but salary not saved: ${salaryErr}`;
   } catch (e) {
     return `Saved, but invite failed: ${(e as Error).message}`;
   }

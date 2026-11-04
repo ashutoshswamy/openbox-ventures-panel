@@ -63,6 +63,7 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
         </label>
       )}
       <label className="field">Joining date<input name="joined_on" type="date" defaultValue={e?.joined_on ?? ""} className="input" /></label>
+      {!e && <label className="field">Annual CTC (₹)<input name="annual_ctc" type="number" min="1" step="any" inputMode="decimal" placeholder="Optional, can be added later in Payroll" className="input" /></label>}
       {e && <label className="field">Exit date<input name="exit_date" type="date" defaultValue={e.exit_date ?? ""} className="input" /></label>}
       </>
       )}

@@ -3,7 +3,7 @@ import { db } from "@/lib/supabase";
 import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
 import { calView, daysWithin, eachDay, isoDow, pageOf, validDay } from "@/lib/calendar";
 import Link from "next/link";
-import { Building2, CalendarDays, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, TriangleAlert, UserX, X } from "lucide-react";
+import { Building2, CalendarDays, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, Table2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
@@ -68,8 +68,13 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     const inIds = new Set(day.map((r) => r.employee_id));
     // absent = working-day staff (employed that day) with no check-in and no approved leave; weekends/holidays not excluded beyond Sat/Sun
     const out = d < today && isoDow(d) <= 5 ? staff.filter((p) => !inIds.has(p.id) && !awayIds.has(p.id) && (!p.joined_on || d >= p.joined_on) && (!p.exit_date || d <= p.exit_date)) : [];
-    const times = (rs: typeof day) => rs.map((r) => `${r.full_name} · In ${fmtTime(r.check_in_at, tzOf(r.office_id))} · Out ${fmtTime(r.check_out_at, tzOf(r.office_id))}`).sort();
-    const names = (rs: { full_name: string }[]) => rs.map((r) => r.full_name).sort();
+    const dayOf = (iso: string, tz: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: tz });
+    const times = (rs: typeof day) => rs.map((r) => {
+      const tz = tzOf(r.office_id);
+      const next = r.check_out_at && dayOf(r.check_out_at, tz) !== dayOf(r.check_in_at, tz) ? " (+1 day)" : ""; // overnight shift
+      return { name: r.full_name, in: fmtTime(r.check_in_at, tz), out: fmtTime(r.check_out_at, tz) + next };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+    const names = (rs: { full_name: string }[]) => rs.map((r) => ({ name: r.full_name })).sort((a, b) => a.name.localeCompare(b.name));
     const q = new URLSearchParams({ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date: d, view, at });
     cells[d] = {
       href: `?${q}`,
@@ -77,7 +82,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       lines: [
         ...(day.length ? [{ text: `${day.length} present`, tone: "green" as const, people: times(day) }] : []),
         ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: times(late) }] : []),
-        ...(away.length ? [{ text: `${away.length} on leave`, tone: "muted" as const, people: away.map((l) => nameOf(l.employee_id)).sort() }] : []),
+        ...(away.length ? [{ text: `${away.length} on leave`, tone: "muted" as const, people: names(away.map((l) => ({ full_name: nameOf(l.employee_id) }))) }] : []),
         ...(out.length ? [{ text: `${out.length} absent`, tone: "red" as const, people: names(out) }] : []),
       ],
     };
@@ -92,6 +97,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   return (
     <>
     <PageHeader title="Attendance" sub={`${present} present · ${onLeave} on leave · ${(people?.length ?? 0) - present - onLeave} absent`}>
+      <Link href={`${me.role === "hr" ? "/hr" : "/admin"}/attendance/monthly`} className="btn"><Table2 /> Monthly view</Link>
       <Link href={`${me.role === "hr" ? "/hr" : "/admin"}/attendance/analytics`} className="btn"><ChartColumn /> Analytics</Link>
     </PageHeader>
     <div className="space-y-6">
