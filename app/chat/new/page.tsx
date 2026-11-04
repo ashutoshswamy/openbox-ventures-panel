@@ -1,3 +1,4 @@
+import { PersonSelect } from "@/components/person-select";
 import Link from "next/link";
 import { ArrowLeft, MessageCircle, UsersRound } from "lucide-react";
 import { pageMe } from "@/lib/me";
@@ -23,9 +24,7 @@ export default async function NewChat() {
         <div>
           <h2 className="h2"><MessageCircle /> Direct message</h2>
           <ActionForm action={openDm} className="flex gap-2">
-            <select name="employee_id" required aria-label="Person" className="input h-10">
-              {people?.map((p) => <option key={p.id} value={p.id}>{p.full_name}{admin && p.role === "admin" ? " (admin)" : ""}</option>)}
-            </select>
+            <div className="flex-1"><PersonSelect name="employee_id" required ariaLabel="Person" placeholder="Search for a person" className="input h-10" options={(people ?? []).map((p) => ({ id: p.id, label: `${p.full_name}${admin && p.role === "admin" ? " (admin)" : ""}` }))} /></div>
             <button className="btn btn-primary h-10">Open</button>
           </ActionForm>
         </div>

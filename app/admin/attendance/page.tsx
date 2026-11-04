@@ -8,6 +8,7 @@ import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
 import { Calendar, type CalCell } from "@/components/calendar";
+import { PersonSelect } from "@/components/person-select";
 import { ExportForm } from "@/components/export-form";
 import { Pager } from "@/components/pager";
 import { PageHeader } from "@/components/shell";
@@ -35,9 +36,9 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   if (office) emps = emps.eq("office_id", office);
   // calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the range.
   const monthRows = async () => {
-    const all: { date: string; late: boolean; employee_id: string; full_name: string; check_in_at: string; office_id: string | null }[] = [];
+    const all: { date: string; late: boolean; employee_id: string; full_name: string; check_in_at: string; check_out_at: string | null; office_id: string | null }[] = [];
     for (let i = 0; ; i += 1000) {
-      let mq = sb.from("attendance_report").select("date, late, employee_id, full_name, check_in_at, office_id").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
+      let mq = sb.from("attendance_report").select("date, late, employee_id, full_name, check_in_at, check_out_at, office_id").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
       if (office) mq = mq.eq("office_id", office);
       if (emp) mq = mq.eq("employee_id", emp);
       const { data } = await mq;
@@ -65,18 +66,19 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     const away = (monthLeaves ?? []).filter((l) => (!emp || l.employee_id === emp) && (!office || (l.employee as { office_id?: string } | null)?.office_id === office) && daysWithin(l.start_date, l.end_date, from, to).includes(d));
     const awayIds = new Set(away.map((l) => l.employee_id));
     const inIds = new Set(day.map((r) => r.employee_id));
-    // not in = working-day staff (employed that day) with no check-in and no approved leave; weekends/holidays not excluded beyond Sat/Sun
+    // absent = working-day staff (employed that day) with no check-in and no approved leave; weekends/holidays not excluded beyond Sat/Sun
     const out = d < today && isoDow(d) <= 5 ? staff.filter((p) => !inIds.has(p.id) && !awayIds.has(p.id) && (!p.joined_on || d >= p.joined_on) && (!p.exit_date || d <= p.exit_date)) : [];
+    const times = (rs: typeof day) => rs.map((r) => `${r.full_name} · In ${fmtTime(r.check_in_at, tzOf(r.office_id))} · Out ${fmtTime(r.check_out_at, tzOf(r.office_id))}`).sort();
     const names = (rs: { full_name: string }[]) => rs.map((r) => r.full_name).sort();
     const q = new URLSearchParams({ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date: d, view, at });
     cells[d] = {
       href: `?${q}`,
       off: isoDow(d) > 5,
       lines: [
-        ...(day.length ? [{ text: `${day.length} in`, tone: "green" as const, people: names(day) }] : []),
-        ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: late.map((r) => `${r.full_name} · ${fmtTime(r.check_in_at, tzOf(r.office_id))}`).sort() }] : []),
+        ...(day.length ? [{ text: `${day.length} present`, tone: "green" as const, people: times(day) }] : []),
+        ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: times(late) }] : []),
         ...(away.length ? [{ text: `${away.length} on leave`, tone: "muted" as const, people: away.map((l) => nameOf(l.employee_id)).sort() }] : []),
-        ...(out.length ? [{ text: `${out.length} not in`, tone: "red" as const, people: names(out) }] : []),
+        ...(out.length ? [{ text: `${out.length} absent`, tone: "red" as const, people: names(out) }] : []),
       ],
     };
   }
@@ -89,16 +91,13 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
   return (
     <>
-    <PageHeader title="Attendance" sub={`${present} present · ${onLeave} on leave · ${(people?.length ?? 0) - present - onLeave} not checked in`}>
+    <PageHeader title="Attendance" sub={`${present} present · ${onLeave} on leave · ${(people?.length ?? 0) - present - onLeave} absent`}>
       <Link href={`${me.role === "hr" ? "/hr" : "/admin"}/attendance/analytics`} className="btn"><ChartColumn /> Analytics</Link>
     </PageHeader>
     <div className="space-y-6">
       <AutoForm className="flex flex-wrap items-center gap-2">
         <input type="date" name="date" defaultValue={date} className="input w-auto" />
-        <select name="emp" defaultValue={emp ?? ""} className="input w-auto" aria-label="Employee">
-          <option value="">All employees</option>
-          {people?.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
+        <PersonSelect name="emp" defaultValue={emp} empty="All employees" ariaLabel="Employee" submitOnPick className="input w-56" options={(people ?? []).map((p) => ({ id: p.id, label: p.full_name }))} />
         {me.role === "admin" && (
           <select name="office" defaultValue={office ?? ""} className="input w-auto">
             <option value="">All offices</option>
@@ -142,7 +141,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
       <section className="card">
         <h2 className="h2"><CalendarDays /> Calendar</h2>
-        <Calendar view={view} at={at} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date }} legend={[["green", "Checked in"], ["amber", "Late"], ["red", "Not in"], ["muted", "On leave"]]} />
+        <Calendar view={view} at={at} cells={cells} today={today} selected={date} params={{ ...(office ? { office } : {}), ...(emp ? { emp } : {}), date }} legend={[["green", "Present"], ["amber", "Late"], ["red", "Absent"], ["muted", "On leave"]]} />
         <p className="mt-2 text-xs text-muted">Click a number to list the day below, or a chip to see who.</p>
       </section>
 
@@ -162,7 +161,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
                     <span className="flex flex-wrap gap-1">
                       {r ? (r.mode === "wfh" ? <span className="badge badge-blue"><House /> Home</span> : <span className="badge badge-green"><Building2 /> Office</span>)
                         : l ? <span className="badge badge-amber"><Palmtree /> {(l.type as { name?: string } | null)?.name ?? "Leave"}</span>
-                        : <span className="badge badge-red"><UserX /> Not in</span>}
+                        : <span className="badge badge-red"><UserX /> Absent</span>}
                       {r?.late && <span className="badge badge-amber"><TriangleAlert /> Late</span>}
                       {r?.early_leave && <span className="badge">Left early</span>}
                     </span>

@@ -1,5 +1,6 @@
 import { Circle, CircleCheck, ListTodo, Plus, Send, Trash2 } from "lucide-react";
 import type { Me } from "@/lib/me";
+import { PersonSelect } from "@/components/person-select";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
 import { addTodo, deleteTodo, toggleTodo } from "@/app/todo-actions";
@@ -128,10 +129,7 @@ export async function TodoPage({ me, assign }: { me: Me; assign?: boolean }) {
               <h2 className="h2">Assign a task</h2>
               <ActionForm action={addTodo} success="Task assigned" className="space-y-4 rounded-2xl border border-line bg-surface p-5">
                 <label className="field">Assign to
-                  <select name="owner_id" required className="input" defaultValue="">
-                    <option value="" disabled>Pick a person</option>
-                    {people?.data?.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-                  </select>
+                  <PersonSelect name="owner_id" required placeholder="Search for a person" options={(people?.data ?? []).map((p) => ({ id: p.id, label: p.full_name }))} />
                 </label>
                 <label className="field">Task<input name="title" required maxLength={300} placeholder="What should they do?" className="input" /></label>
                 <div className="flex items-end justify-between gap-3">

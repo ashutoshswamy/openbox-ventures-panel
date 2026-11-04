@@ -10,6 +10,7 @@ import { AutoForm } from "@/components/auto-form";
 import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
+import { PersonSelect } from "@/components/person-select";
 import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee } from "../actions";
 
 export const metadata = { title: "Employees" };
@@ -58,10 +59,7 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
       <label className="field">Designation<input name="designation" defaultValue={e?.designation ?? ""} className="input" /></label>
       {e && people && (
         <label className="field">Reports to
-          <select name="reports_to" defaultValue={e.reports_to ?? ""} className="input">
-            <option value="">-</option>
-            {people.filter((p) => p.id !== e.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <PersonSelect name="reports_to" defaultValue={e.reports_to} empty="-" options={people.filter((p) => p.id !== e.id).map((p) => ({ id: p.id, label: p.name }))} />
         </label>
       )}
       <label className="field">Joining date<input name="joined_on" type="date" defaultValue={e?.joined_on ?? ""} className="input" /></label>

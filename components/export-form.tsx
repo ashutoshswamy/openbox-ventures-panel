@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PersonSelect } from "@/components/person-select";
 import { Download } from "lucide-react";
 
 // Asks what to export: one day, a whole month, or a date range. The route reads day | month | from+to.
@@ -25,10 +26,7 @@ export function ExportForm({ action, date, office, people }: { action: string; d
       )}
       {people && (
         <label className="field">Who
-          <select name="employee" defaultValue="" className="input w-auto">
-            <option value="">Everyone</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-          </select>
+          <PersonSelect name="employee" empty="Everyone" className="input w-56" options={people.map((p) => ({ id: p.id, label: p.full_name }))} />
         </label>
       )}
       {office && <input type="hidden" name="office" value={office} />}
