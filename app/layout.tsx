@@ -4,13 +4,13 @@ import { AppToaster } from "@/components/toaster";
 import "sileo/styles.css";
 import { Tooltips } from "@/components/tooltips";
 import { headers } from "next/headers";
-import { DM_Sans } from "next/font/google";
+import { Bricolage_Grotesque } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
   axes: ["opsz"],
 });
@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-IN"
-      className={`${dmSans.variable} h-full antialiased`}
+      className={`${bricolage.variable} h-full antialiased`}
       suppressHydrationWarning // data-theme is set by themeScript before React hydrates
     >
       <head>
@@ -76,7 +76,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
               colorInput: "var(--surface)",
               colorInputForeground: "var(--text)",
               colorNeutral: "var(--text)",
-              fontFamily: "var(--font-dm-sans)",
+              fontFamily: "var(--font-bricolage)",
               borderRadius: "0.5rem",
             },
           }}

@@ -76,7 +76,7 @@
   --color-green-soft: var(--green-soft);
   --color-blue: var(--blue);
   --color-blue-soft: var(--blue-soft);
-  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
