@@ -152,6 +152,7 @@ export async function inviteEmployee(fd: FormData) {
       email,
       full_name: str(fd, "full_name"),
       designation: str(fd, "designation"),
+      joined_on: str(fd, "joined_on"), // blank → set on first sign-in
       ...(await placement(fd)),
     });
     if (error) return error.code === "23505" ? (error.message.includes("employee_code") ? "Two invites took the same employee code, send it again" : "Employee with this email already exists") : error.message;

@@ -64,7 +64,7 @@ function Fields({ e, r, offices, depts, people }: { e?: Emp; r?: Role | null; of
           </select>
         </label>
       )}
-      {e && <label className="field">Joined on<input name="joined_on" type="date" defaultValue={e.joined_on ?? ""} className="input" /></label>}
+      <label className="field">Joining date<input name="joined_on" type="date" defaultValue={e?.joined_on ?? ""} className="input" /></label>
       {e && <label className="field">Exit date<input name="exit_date" type="date" defaultValue={e.exit_date ?? ""} className="input" /></label>}
       </>
       )}

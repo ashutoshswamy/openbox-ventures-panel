@@ -35,9 +35,9 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   if (office) emps = emps.eq("office_id", office);
   // calendar: head count per day. PostgREST caps a request at 1000 rows, so page through the range.
   const monthRows = async () => {
-    const all: { date: string; late: boolean; employee_id: string; full_name: string }[] = [];
+    const all: { date: string; late: boolean; employee_id: string; full_name: string; check_in_at: string; office_id: string | null }[] = [];
     for (let i = 0; ; i += 1000) {
-      let mq = sb.from("attendance_report").select("date, late, employee_id, full_name").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
+      let mq = sb.from("attendance_report").select("date, late, employee_id, full_name, check_in_at, office_id").gte("date", from).lte("date", to < today ? to : today).order("id").range(i, i + 999);
       if (office) mq = mq.eq("office_id", office);
       if (emp) mq = mq.eq("employee_id", emp);
       const { data } = await mq;
@@ -55,6 +55,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     sb.from("leave_requests").select("employee_id, start_date, end_date, employee:employees!leave_requests_employee_id_fkey(office_id)").eq("status", "approved").lte("start_date", to).gte("end_date", from),
   ]);
 
+  const tzOf = (officeId: string | null) => offices?.find((o) => o.id === officeId)?.timezone ?? DEFAULT_TZ;
   const cells: Record<string, CalCell> = {};
   const staff = (people ?? []).filter((p) => !emp || p.id === emp);
   const nameOf = (id: string) => people?.find((p) => p.id === id)?.full_name ?? "?";
@@ -73,14 +74,13 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       off: isoDow(d) > 5,
       lines: [
         ...(day.length ? [{ text: `${day.length} in`, tone: "green" as const, people: names(day) }] : []),
-        ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: names(late) }] : []),
+        ...(late.length ? [{ text: `${late.length} late`, tone: "amber" as const, people: late.map((r) => `${r.full_name} · ${fmtTime(r.check_in_at, tzOf(r.office_id))}`).sort() }] : []),
         ...(away.length ? [{ text: `${away.length} on leave`, tone: "muted" as const, people: away.map((l) => nameOf(l.employee_id)).sort() }] : []),
         ...(out.length ? [{ text: `${out.length} not in`, tone: "red" as const, people: names(out) }] : []),
       ],
     };
   }
   const canReview = me.role === "hr" || me.role === "admin"; // review_regularization() enforces this too
-  const tzOf = (officeId: string | null) => offices?.find((o) => o.id === officeId)?.timezone ?? DEFAULT_TZ;
   const recOf = (id: string) => rows?.find((r) => r.employee_id === id);
   const leaveOf = (id: string) => leaves?.find((l) => l.employee_id === id);
 
