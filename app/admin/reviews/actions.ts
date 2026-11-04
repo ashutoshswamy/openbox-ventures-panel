@@ -21,6 +21,13 @@ export async function closeCycle(fd: FormData) {
   revalidatePath("/", "layout");
 }
 
+export async function deleteCycle(fd: FormData) {
+  await requireStaff();
+  const { error } = await db().rpc("delete_review_cycle", { p_id: str(fd, "id") });
+  if (error) return error.message;
+  revalidatePath("/", "layout");
+}
+
 export async function rateEmployee(fd: FormData) {
   await requireStaff();
   const { error } = await db().rpc("submit_manager_review", { p_id: str(fd, "id"), p_rating: Number(str(fd, "rating")), p_comments: str(fd, "comments") });

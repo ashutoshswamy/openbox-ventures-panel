@@ -1,10 +1,10 @@
-import { ClipboardCheck, Plus, Star } from "lucide-react";
+import { ClipboardCheck, Plus, Star, Trash2 } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { RATINGS, fmtDate } from "@/lib/util";
 import { ActionForm } from "@/components/action-form";
 import { PageHeader } from "@/components/shell";
-import { closeCycle, rateEmployee, startCycle } from "./actions";
+import { closeCycle, deleteCycle, rateEmployee, startCycle } from "./actions";
 
 export const metadata = { title: "Performance reviews" };
 
@@ -60,11 +60,19 @@ export default async function Reviews() {
                   <h2 className="h2 mb-0">{c.name} <span className={`badge ${open ? "badge-green" : ""}`}>{c.status}</span></h2>
                   <p className="text-sm text-muted">{fmtDate(c.period_start)} to {fmtDate(c.period_end)} · {(c.office as { name: string } | null)?.name ?? "All offices"} · {rows.filter((r) => r.mgr_at).length}/{rows.length} rated</p>
                 </div>
-                {open && (c.created_by === me.id || me.role === "admin") && (
-                  <ActionForm action={closeCycle} confirm="Close this cycle? Nobody can edit reviews after.">
-                    <input type="hidden" name="id" value={c.id} />
-                    <button className="btn btn-ghost">Close cycle</button>
-                  </ActionForm>
+                {(c.created_by === me.id || me.role === "admin") && (
+                  <div className="flex gap-1">
+                    {open && (
+                      <ActionForm action={closeCycle} success="Cycle closed" confirm="Close this cycle? Nobody can edit reviews after.">
+                        <input type="hidden" name="id" value={c.id} />
+                        <button className="btn btn-ghost">Close cycle</button>
+                      </ActionForm>
+                    )}
+                    <ActionForm action={deleteCycle} success="Cycle deleted" confirm={`Delete "${c.name}"? Every self-assessment, rating and comment in it is deleted too. This cannot be undone.`}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <button className="btn btn-ghost btn-danger"><Trash2 /> Delete</button>
+                    </ActionForm>
+                  </div>
                 )}
               </div>
               {rows.length ? (

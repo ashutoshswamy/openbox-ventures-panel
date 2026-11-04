@@ -7,6 +7,7 @@ import { onShift, shiftDay } from "@/lib/calendar";
 import { pendingCounts } from "@/lib/pending";
 import { PageHeader } from "@/components/shell";
 import { CountUp } from "@/components/count-up";
+import { MonthEvents } from "@/components/month-events";
 
 export const metadata = { title: "Overview" };
 
@@ -135,6 +136,7 @@ export default async function AdminHome() {
             )}
           </div>
         )}
+        <MonthEvents officeId={me.role === "admin" ? undefined : me.office_id} />
       </div>
     </>
   );

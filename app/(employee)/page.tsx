@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BellRing, CalendarDays, Megaphone } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, Check, Megaphone } from "lucide-react";
 import { employeePage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, greeting, splitPost, todayIn } from "@/lib/util";
@@ -9,6 +9,9 @@ import { PageHeader } from "@/components/shell";
 import { Attachment } from "@/components/attachment";
 import { CountUp } from "@/components/count-up";
 import { Celebrate } from "@/components/confetti";
+import { MonthEvents } from "@/components/month-events";
+import { ActionForm } from "@/components/action-form";
+import { readAnnouncements } from "./actions";
 
 export const metadata = { title: "Dashboard" };
 
@@ -17,9 +20,11 @@ export default async function Dashboard() {
   const sb = db();
   const today = todayIn();
   const week = new Date(Date.parse(today) + 7 * 864e5).toISOString().slice(0, 10);
+  // announcements I have not read yet: once I open the channel (or press Mark all read) they leave this card; the channel keeps the history
+  const { data: seen } = await sb.from("channel_members").select("last_read_at, channel:channels!inner(announcements)").eq("employee_id", me.id).eq("channel.announcements", true).maybeSingle();
   const [{ data: balances }, { data: news }, { count: pending }, { data: due }, { data: holidays }, celebrations, { count: openTodos }, { data: self }] = await Promise.all([
     sb.from("leave_balances").select("leave_type_id, name, balance, entitled, used").eq("employee_id", me.id).order("name"),
-    sb.from("messages").select("id, body, attachment_path, created_at, channel:channels!inner(announcements)").eq("channel.announcements", true).order("created_at", { ascending: false }).limit(4),
+    sb.from("messages").select("id, body, attachment_path, created_at, channel:channels!inner(announcements)").eq("channel.announcements", true).gt("created_at", seen?.last_read_at ?? "1970-01-01").order("created_at", { ascending: false }).limit(4),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("employee_id", me.id).eq("status", "pending"),
     sb.from("todos").select("id, title, due_on").eq("owner_id", me.id).is("done_at", null).lte("due_on", today).order("due_on"),
     sb.from("holidays").select("name, date, office_id").gte("date", today).lte("date", week).order("date"),
@@ -102,8 +107,11 @@ export default async function Dashboard() {
 
           <section className="card">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="h2 mb-0"><Megaphone /> Announcements</h2>
-              <Link href="/chat/announcements" className="btn btn-ghost text-primary">Open <ArrowRight /></Link>
+              <h2 className="h2 mb-0"><Megaphone /> New announcements</h2>
+              <div className="flex items-center gap-1">
+                {!!news?.length && <ActionForm action={readAnnouncements} success="Announcements cleared"><button className="btn btn-ghost"><Check /> Mark all read</button></ActionForm>}
+                <Link href="/chat/announcements" className="btn btn-ghost text-primary">Open <ArrowRight /></Link>
+              </div>
             </div>
             {news?.length ? (
               <ul className="divide-y divide-line">
@@ -122,10 +130,11 @@ export default async function Dashboard() {
                 })}
               </ul>
             ) : (
-              <p className="empty"><Megaphone /> No announcements yet.</p>
+              <p className="empty"><Megaphone /> You are all caught up.</p>
             )}
           </section>
         </div>
+        <MonthEvents officeId={me.office_id} />
       </div>
     </>
   );

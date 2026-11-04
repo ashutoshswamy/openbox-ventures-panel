@@ -33,3 +33,36 @@ export async function todaysCelebrations() {
   }
   return out;
 }
+
+export type MonthEvent = { date: string; kind: "birthday" | "anniversary" | "joined" | "holiday"; text: string };
+
+// Everything still to come this month (plus today): birthdays, work anniversaries, new joiners, holidays. Names and dates only, no ages.
+// Server key like todaysCelebrations(); holidays are limited to the viewer's office (+ company-wide ones). officeId undefined = every office (admin).
+export async function monthEvents(officeId?: string | null): Promise<MonthEvent[]> {
+  const today = todayIn(DEFAULT_TZ);
+  const month = today.slice(0, 7);
+  const end = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const sb = adminDb();
+  const [{ data: emps }, { data: hols }] = await Promise.all([
+    sb.from("employees").select("full_name, joined_on, profile:employee_profiles(date_of_birth)").eq("active", true).or("role.is.null,role.neq.admin"),
+    sb.from("holidays").select("name, date, office_id").gte("date", today).lte("date", end).order("date"),
+  ]);
+  const out: MonthEvent[] = (hols ?? []).filter((h) => officeId === undefined || !h.office_id || h.office_id === officeId).map((h) => ({ date: h.date, kind: "holiday", text: h.name }));
+  const year = Number(month.slice(0, 4));
+  for (const e of emps ?? []) {
+    const dob = (e.profile as { date_of_birth?: string } | null)?.date_of_birth;
+    if (dob?.slice(5, 7) === month.slice(5, 7)) {
+      const d = `${month}-${dob.slice(8, 10)}`;
+      if (d >= today) out.push({ date: d, kind: "birthday", text: `${e.full_name}'s birthday` });
+    }
+    if (e.joined_on) {
+      const y = year - Number(e.joined_on.slice(0, 4));
+      if (e.joined_on.slice(5, 7) === month.slice(5, 7)) {
+        const d = `${month}-${e.joined_on.slice(8, 10)}`;
+        if (y >= 1 && d >= today) out.push({ date: d, kind: "anniversary", text: `${e.full_name}'s ${y}-year work anniversary` });
+        if (y === 0 && e.joined_on <= today) out.push({ date: e.joined_on, kind: "joined", text: `${e.full_name} joined the team` });
+      }
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.text.localeCompare(b.text));
+}

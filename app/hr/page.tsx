@@ -5,6 +5,7 @@ import { db } from "@/lib/supabase";
 import { todayIn } from "@/lib/util";
 import { onShift, shiftDay } from "@/lib/calendar";
 import { CountUp } from "@/components/count-up";
+import { MonthEvents } from "@/components/month-events";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Overview" };
@@ -86,6 +87,7 @@ export default async function HrHome() {
             ))}
           </div>
         </section>
+        <MonthEvents officeId={me.office_id} />
       </div>
     </>
   );

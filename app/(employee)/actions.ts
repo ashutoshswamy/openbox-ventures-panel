@@ -205,3 +205,10 @@ export async function selfReview(fd: FormData) {
   if (error) return error.message;
   done();
 }
+
+// "Mark all read" for the dashboard announcements card: same as opening the Announcements channel.
+export async function readAnnouncements() {
+  const { data } = await db().from("channels").select("id").eq("announcements", true).maybeSingle();
+  if (data) await markRead(data.id);
+  revalidatePath("/");
+}
