@@ -12,6 +12,7 @@ export default clerkMiddleware({
       "connect-src": [supabase, supabase.replace(/^http/, "ws")], // REST, uploads, realtime
       "img-src": ["data:", "blob:", supabase], // attachments: /files redirects to signed storage URLs
       "media-src": ["self", "blob:", supabase],
+      "frame-src": ["https://www.time-zones-map.com"], // embedded US time zone map
       "frame-ancestors": ["none"], // no clickjacking
       "worker-src": ["self"], // /sw.js (installable app)
       "object-src": ["none"],

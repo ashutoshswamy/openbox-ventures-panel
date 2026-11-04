@@ -14,6 +14,7 @@ export function employeeNav(me: Assigned) {
     ["/leave", "Leave", "leave"],
     ["/chat", "Chat", "chat"],
     ["/directory", "Directory", "directory"],
+    ["/time-zones", "Time zones", "timezones"],
     ["/reviews", "Reviews", "reviews"],
     ["/payslips", "Payslips", "payroll"],
     ["/profile", "My details", "profile"],
@@ -40,6 +41,7 @@ export async function adminNav(me: Assigned) {
     ["/admin/reports", "Work reports", "reports"],
     ["/admin/reviews", "Reviews", "reviews"],
     ["/admin/announcements", "Announcements", "announcements"],
+    ["/admin/time-zones", "Time zones", "timezones"],
   ];
   if (admin) {
     links.push(["/chat", "Chat", "chat"]);
