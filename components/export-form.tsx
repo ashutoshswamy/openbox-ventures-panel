@@ -29,8 +29,14 @@ export function ExportForm({ action, date, office, people }: { action: string; d
           <PersonSelect name="employee" empty="Everyone" className="input w-56" options={people.map((p) => ({ id: p.id, label: p.full_name }))} />
         </label>
       )}
+      <label className="field">Format
+        <select name="format" defaultValue="xls" className="input w-auto">
+          <option value="xls">Excel (.xls)</option>
+          <option value="csv">CSV (.csv)</option>
+        </select>
+      </label>
       {office && <input type="hidden" name="office" value={office} />}
-      <button className="btn"><Download /> Download CSV</button>
+      <button className="btn"><Download /> Download</button>
     </form>
   );
 }
