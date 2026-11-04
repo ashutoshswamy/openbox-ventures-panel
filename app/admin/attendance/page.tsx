@@ -151,6 +151,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
         <p className="mt-2 text-xs text-muted">Click a number to list the day below, or a chip to see who.</p>
       </section>
 
+      {!emp && ( // one person picked in the calendar filter: no day list
       <section className="card overflow-x-auto">
         <h2 className="h2">{fmtDate(date)}</h2>
         <table className="table">
@@ -209,6 +210,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
         </table>
         <Pager page={page} total={people?.length ?? 0} size={SIZE} />
       </section>
+      )}
 
       <section className="card">
         <h2 className="h2"><Download /> Export attendance muster</h2>
