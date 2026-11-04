@@ -3,6 +3,7 @@ import { ArrowRight, CalendarDays, ClockAlert, LogOut, UserPlus, Users } from "l
 import { hrPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { todayIn } from "@/lib/util";
+import { onShift, shiftDay } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
 
 export const metadata = { title: "Overview" };
@@ -24,10 +25,10 @@ export default async function HrHome() {
     staff().gte("exit_date", today).lte("exit_date", in30),
     sb.from("leave_requests").select("id", head).not("status", "in", OPEN).neq("employee_id", me.id),
     sb.from("regularizations").select("id", head).eq("status", "pending").neq("employee_id", me.id),
-    sb.from("attendance_report").select("employee_id").eq("date", today),
+    sb.from("attendance_report").select("employee_id, date, check_in_at, check_out_at").in("date", [today, shiftDay(today, -1)]),
     sb.from("leave_requests").select("employee_id").eq("status", "approved").lte("start_date", today).gte("end_date", today),
   ]);
-  const present = new Set(att?.map((a) => a.employee_id));
+  const present = new Set(att?.filter((a) => onShift(a, today)).map((a) => a.employee_id));
   const away = new Set(onLeave?.map((l) => l.employee_id).filter((id) => !present.has(id)));
   const notIn = Math.max(0, (headcount ?? 0) - present.size - away.size);
 

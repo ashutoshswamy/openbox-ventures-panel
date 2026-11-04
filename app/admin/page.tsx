@@ -3,6 +3,7 @@ import { ArrowRight, Building2, Clock, Hourglass, Inbox, Plus, House, Palmtree, 
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { todayIn } from "@/lib/util";
+import { onShift, shiftDay } from "@/lib/calendar";
 import { pendingCounts } from "@/lib/pending";
 import { PageHeader } from "@/components/shell";
 
@@ -25,7 +26,7 @@ export default async function AdminHome() {
 
   const [{ data: people }, { data: rows }, { data: leaves }, { count: pending }, stale, { count: openIssues }] = await Promise.all([
     sb.from("employees").select("id, office_id").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin"),
-    sb.from("attendance_report").select("employee_id, office_id, date, mode, late").in("date", dates),
+    sb.from("attendance_report").select("employee_id, office_id, date, mode, late, check_in_at, check_out_at").in("date", dates.flatMap((d) => [d, shiftDay(d, -1)])),
     sb.from("leave_requests").select("employee_id, start_date, end_date").eq("status", "approved").lte("start_date", dates.at(-1) ?? todayIn()).gte("end_date", dates[0] ?? todayIn()),
     sb.from("leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending").neq("employee_id", me.id),
     pendingCounts(sb, me.id, 24),
@@ -35,7 +36,7 @@ export default async function AdminHome() {
   const stats = (offices ?? []).map((o) => {
     const today = todayIn(o.timezone);
     const staff = people?.filter((p) => p.office_id === o.id) ?? [];
-    const att = rows?.filter((r) => r.office_id === o.id && r.date === today) ?? [];
+    const att = rows?.filter((r) => r.office_id === o.id && onShift(r, today)) ?? [];
     const leave = staff.filter((p) => !att.some((a) => a.employee_id === p.id) && leaves?.some((l) => l.employee_id === p.id && l.start_date <= today && l.end_date >= today)).length;
     const office = att.filter((a) => a.mode === "office").length;
     const wfh = att.filter((a) => a.mode === "wfh").length;

@@ -14,7 +14,7 @@ export function PeopleChip({ className, label, date, dot, people }: { className:
   const time = (t?: string) => {
     if (!t) return <span className="text-muted">-</span>;
     const [clock, next] = t.split(" (");
-    return <>{clock}{next && <span className="ml-1 text-[10px] text-muted">+1d</span>}</>;
+    return <>{clock}{next && <span className="mt-0.5 block text-[10px] leading-none text-muted">{next.replace(")", "")}</span>}</>;
   };
   return (
     <>

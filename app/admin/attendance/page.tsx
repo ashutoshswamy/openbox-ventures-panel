@@ -1,7 +1,7 @@
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { DEFAULT_TZ, fmtDate, fmtTime, todayIn } from "@/lib/util";
-import { calView, daysWithin, eachDay, isoDow, pageOf, validDay } from "@/lib/calendar";
+import { calView, daysWithin, eachDay, isoDow, onShift, pageOf, shiftDay, validDay } from "@/lib/calendar";
 import Link from "next/link";
 import { Building2, CalendarDays, ChartColumn, Check, ClockAlert, Download, House, Palmtree, Pencil, Plus, Save, Trash2, Table2, TriangleAlert, UserX, X } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
@@ -49,7 +49,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
   const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }, monthAtt, { data: monthLeaves }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, timezone").order("name"),
-    sb.from("attendance_report").select("*").eq("date", date),
+    sb.from("attendance_report").select("*").in("date", date === today ? [date, shiftDay(date, -1)] : [date]),
     sb.from("leave_requests").select("employee_id, type:leave_types(name)").eq("status", "approved").lte("start_date", date).gte("end_date", date),
     sb.from("regularizations").select("*, employee:employees!regularizations_employee_id_fkey(full_name, avatar_url, office_id)").eq("status", "pending").neq("employee_id", me.id).order("date"),
     monthRows(),
@@ -71,7 +71,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     const dayOf = (iso: string, tz: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: tz });
     const times = (rs: typeof day) => rs.map((r) => {
       const tz = tzOf(r.office_id);
-      const next = r.check_out_at && dayOf(r.check_out_at, tz) !== dayOf(r.check_in_at, tz) ? " (+1 day)" : ""; // overnight shift
+      const next = r.check_out_at && dayOf(r.check_out_at, tz) !== dayOf(r.check_in_at, tz) ? ` (${new Date(r.check_out_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: tz })})` : ""; // overnight shift: show the check-out date
       return { name: r.full_name, in: fmtTime(r.check_in_at, tz), out: fmtTime(r.check_out_at, tz) + next };
     }).sort((a, b) => a.name.localeCompare(b.name));
     const names = (rs: { full_name: string }[]) => rs.map((r) => ({ name: r.full_name })).sort((a, b) => a.name.localeCompare(b.name));
@@ -88,7 +88,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
     };
   }
   const canReview = me.role === "hr" || me.role === "admin"; // review_regularization() enforces this too
-  const recOf = (id: string) => rows?.find((r) => r.employee_id === id);
+  const recOf = (id: string) => rows?.find((r) => r.employee_id === id && onShift(r, date));
   const leaveOf = (id: string) => leaves?.find((l) => l.employee_id === id);
 
   const present = people?.filter((p) => recOf(p.id)).length ?? 0;

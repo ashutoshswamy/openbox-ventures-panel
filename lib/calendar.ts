@@ -42,6 +42,11 @@ export function eachDay(start: string, end: string) {
   return out;
 }
 
+// "On shift now" for a day: dated that day, or an overnight shift from the day before that is still open (not checked out, within 18h).
+// Matches the 18h shift window used by check_in()/my_shift() in SQL.
+export const onShift = (r: { date: string; check_in_at: string; check_out_at: string | null }, today: string) =>
+  r.date === today || (r.date === shiftDay(today, -1) && !r.check_out_at && Date.now() - Date.parse(r.check_in_at) < 18 * 36e5);
+
 // days of [start, end] that fall inside [from, to]
 export const daysWithin = (start: string, end: string, from: string, to: string) => eachDay(start < from ? from : start, end > to ? to : end);
 
