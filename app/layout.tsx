@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { UpdateNotice } from "@/components/update-notice";
 import { KeyboardHints } from "@/components/keyboard-hints";
 import { AppToaster } from "@/components/toaster";
 import "sileo/styles.css";
@@ -85,6 +86,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <Tooltips />
           <AppToaster />
           <KeyboardHints />
+          <UpdateNotice />
         </ClerkProvider>
       </body>
     </html>

@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
+// One id per build/deploy. The browser keeps the id it was built with and compares it with /api/version to notice a newer deploy.
+const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? `local-${Date.now()}`;
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  generateBuildId: async () => BUILD_ID,
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   // Clerk-hosted profile photos
   images: { remotePatterns: [{ protocol: "https", hostname: "img.clerk.com" }] },
   async headers() {

@@ -2,8 +2,8 @@ import Link from "next/link";
 import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
-import { fmtDate } from "@/lib/util";
-import { Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
+import { fmtDate, todayIn } from "@/lib/util";
+import { Archive, Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
@@ -142,20 +142,22 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const canEdit = isAdmin || me.role === "hr"; // personal details; HR is limited to their office by the query below
   const { q, status: st, access: ac, role: rl, page: pg } = await searchParams;
   const { page, from, to } = pageOf(pg, SIZE);
-  const status = st === "active" || st === "inactive" ? st : "all";
+  const status = st === "archive" || st === "inactive" ? "archive" : "active"; // archive = exited (exit date reached) or deactivated
+  const today = todayIn();
   const access = ac === "invited" || ac === "accepted" ? ac : "all"; // invited = email sent, not signed up yet; accepted = signed up
   const ROLES = ["employee", "manager", "branch_head", "hr", "admin", "none"] as const; // none = signed up, no role assigned yet
   const role = ROLES.find((x) => x === rl) ?? "all";
   const sb = db();
   let query = sb.from("employees").select("*", { count: "exact" }).order("active", { ascending: false }).order("full_name").range(from, to);
   if (!isAdmin) query = query.eq("office_id", me.office_id ?? "");
-  if (status !== "all") query = query.eq("active", status === "active");
+  if (status === "active") query = query.eq("active", true).or(`exit_date.is.null,exit_date.gt.${today}`);
+  else query = query.or(`active.eq.false,exit_date.lte.${today}`);
   if (access === "invited") query = query.is("clerk_user_id", null);
   if (access === "accepted") query = query.not("clerk_user_id", "is", null);
   if (role === "none") query = query.not("clerk_user_id", "is", null).is("role", null);
   else if (role !== "all") query = query.eq("role", role);
   if (q) query = query.ilike("full_name", `%${String(q).replace(/[%,()]/g, "")}%`);
-  let everyoneQ = sb.from("employees").select("id, name:full_name, active, clerk_user_id").order("full_name");
+  let everyoneQ = sb.from("employees").select("id, name:full_name, active, clerk_user_id, exit_date").order("full_name");
   if (!isAdmin) everyoneQ = everyoneQ.eq("office_id", me.office_id ?? "");
   const [{ data: emps, count: total }, { data: offices }, { data: depts }, { data: everyone }] = await Promise.all([
     query,
@@ -163,11 +165,13 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
     sb.from("departments").select("id, name, office_id").order("name"),
     everyoneQ, // all rows in scope, for counts + "Reports to"
   ]);
-  const counts = { all: everyone?.length ?? 0, active: everyone?.filter((p) => p.active).length ?? 0, inactive: everyone?.filter((p) => !p.active).length ?? 0 };
-  const accessCounts = { all: counts.all, invited: everyone?.filter((p) => !p.clerk_user_id).length ?? 0, accepted: everyone?.filter((p) => p.clerk_user_id).length ?? 0 };
-  const managers = (everyone ?? []).filter((p) => p.active);
+  const archived = (p: { active: boolean; exit_date: string | null }) => !p.active || (!!p.exit_date && p.exit_date <= today);
+  const counts = { active: everyone?.filter((p) => !archived(p)).length ?? 0, archive: everyone?.filter(archived).length ?? 0 };
+  const inView = (everyone ?? []).filter((p) => archived(p) === (status === "archive")); // invite counts follow the tab you are on
+  const accessCounts = { all: inView.length, invited: inView.filter((p) => !p.clerk_user_id).length, accepted: inView.filter((p) => p.clerk_user_id).length };
+  const managers = (everyone ?? []).filter((p) => !archived(p));
   // link that changes one filter and keeps the others (an empty value drops that filter)
-  const keep = (over: Record<string, string>) => `?${new URLSearchParams(Object.entries({ ...(q ? { q: String(q) } : {}), ...(status !== "all" ? { status } : {}), ...(access !== "all" ? { access } : {}), ...(role !== "all" ? { role } : {}), ...over }).filter(([, v]) => v))}`;
+  const keep = (over: Record<string, string>) => `?${new URLSearchParams(Object.entries({ ...(q ? { q: String(q) } : {}), ...(status !== "active" ? { status } : {}), ...(access !== "all" ? { access } : {}), ...(role !== "all" ? { role } : {}), ...over }).filter(([, v]) => v))}`;
 
   // Roles live in Clerk publicMetadata of joined users.
   // ponytail: single page of 500 users; paginate past that.
@@ -184,6 +188,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const waiting = (emps ?? []).filter((e: Emp) => e.active && e.clerk_user_id && !roleOf(e)).length;
   const STATUS = {
     Inactive: ["", Ban],
+    Exited: ["", Archive],
     Invited: ["badge-blue", MailCheck],
     "Needs role": ["badge-amber", Hourglass],
   } as const;
@@ -213,8 +218,8 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             <nav aria-label="Filter by status" className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
-              {([["all", "All"], ["active", "Active"], ["inactive", "Deactivated"]] as const).map(([k, label]) => (
-                <Link key={k} href={keep({ status: k === "all" ? "" : k })} aria-current={status === k ? "page" : undefined}
+              {([["active", "Active"], ["archive", "Archive"]] as const).map(([k, label]) => (
+                <Link key={k} href={keep({ status: k === "active" ? "" : k })} aria-current={status === k ? "page" : undefined}
                   className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-colors ${status === k ? "bg-surface font-medium text-text shadow-[0_1px_2px_rgb(24_24_27/0.08)]" : "text-muted hover:text-text"}`}>
                   {label} <span className="text-xs tabular-nums opacity-70">{counts[k]}</span>
                 </Link>
@@ -230,7 +235,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
               ))}
             </nav>
             <AutoForm className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              {status !== "all" && <input type="hidden" name="status" value={status} />}
+              {status !== "active" && <input type="hidden" name="status" value={status} />}
               {access !== "all" && <input type="hidden" name="access" value={access} />}
               <select name="role" defaultValue={role === "all" ? "" : role} aria-label="Filter by role" className="input w-auto">
                 <option value="">All roles</option>
@@ -252,11 +257,12 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
         <ul className="card divide-y divide-line p-0">
           {emps?.map((e: Emp) => {
             const r = roleOf(e);
-            const status = !e.active ? "Inactive" : !e.clerk_user_id ? "Invited" : !r ? "Needs role" : null;
+            const exited = !!e.exit_date && e.exit_date <= today;
+            const status = exited ? "Exited" : !e.active ? "Inactive" : !e.clerk_user_id ? "Invited" : !r ? "Needs role" : null;
             const StatusIcon = status ? STATUS[status][1] : null;
             return (
               <li key={e.id}>
-                <details className={`group ${e.active ? "" : "opacity-60"}`}>
+                <details className={`group ${e.active && !exited ? "" : "opacity-60"}`}>
                   <summary className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${canEdit ? "cursor-pointer hover:bg-surface-2/60" : ""}`}>
                     <Avatar name={e.full_name} src={e.avatar_url} size="size-11" />
                     <span className="min-w-0 flex-1 leading-snug md:flex-none md:basis-72">
@@ -322,8 +328,8 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
           {!emps?.length && (
             <li className="empty py-12">
               <Users />
-              {q || status !== "all" ? "No one matches these filters." : "No employees yet."}
-              {(q || status !== "all") && <Link href="?" className="btn mt-1">Clear filters</Link>}
+              {q || status !== "active" ? "No one matches these filters." : "No employees yet."}
+              {(q || status !== "active") && <Link href="?" className="btn mt-1">Clear filters</Link>}
             </li>
           )}
         </ul>
