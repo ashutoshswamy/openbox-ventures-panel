@@ -1,4 +1,4 @@
-import { Bot, Megaphone, Send, Trash2 } from "lucide-react";
+import { Bot, Megaphone, RefreshCw, Send, Trash2 } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, fmtTime, splitPost } from "@/lib/util";
@@ -6,7 +6,8 @@ import { ActionForm } from "@/components/action-form";
 import { AttachInput } from "@/components/attach-input";
 import { Attachment } from "@/components/attachment";
 import { PageHeader } from "@/components/shell";
-import { deleteAnnouncement, saveAnnouncement } from "../actions";
+import { missingReminders } from "@/lib/pending";
+import { deleteAnnouncement, saveAnnouncement, syncReminders } from "../actions";
 
 export const metadata = { title: "Announcements" };
 
@@ -20,11 +21,19 @@ export default async function Announcements() {
     ? await sb.from("messages").select("id, body, attachment_path, created_at, sender_id, sender:employees!messages_sender_id_fkey(full_name)").eq("channel_id", ch.id).order("created_at", { ascending: false }).limit(50)
     : { data: [] };
   const posts = (data ?? []) as unknown as Post[];
+  const missing = await missingReminders().catch(() => 0);
 
   return (
     <>
       <PageHeader title="Announcements" sub="Posts go to the Announcements channel in everyone's chat. Admins, managers and automated updates post there." />
       <div className="max-w-3xl space-y-6">
+        {missing > 0 && (
+          <section className="card flex flex-wrap items-center gap-3 border-amber/40 bg-amber-soft/40">
+            <RefreshCw className="size-5 shrink-0 text-amber" />
+            <p className="min-w-0 flex-1 text-sm"><b className="font-semibold">Not synced.</b> {missing} birthday, anniversary or holiday reminder{missing === 1 ? "" : "s"} for today {missing === 1 ? "hasn't" : "haven't"} been posted yet.</p>
+            <ActionForm action={syncReminders} success="Announcements synced"><button className="btn btn-primary"><RefreshCw /> Sync now</button></ActionForm>
+          </section>
+        )}
         <section className="card">
           <ActionForm action={saveAnnouncement} className="space-y-4">
             <input name="title" required placeholder="Headline" aria-label="Headline" className="input h-11 text-base font-medium" />

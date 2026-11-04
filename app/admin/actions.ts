@@ -390,3 +390,11 @@ export async function setIssueStatus(fd: FormData) {
   if (error) return error.message;
   done();
 }
+
+// Posts today's birthday / anniversary / holiday-eve announcements that are still missing (same job as the daily cron; safe to repeat).
+export async function syncReminders() {
+  await requireStaff();
+  const { error } = await adminDb().rpc("daily_reminders");
+  if (error) return error.message;
+  revalidatePath("/", "layout");
+}

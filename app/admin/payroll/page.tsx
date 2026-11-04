@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Calculator, ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Wallet } from "lucide-react";
+import { Calculator, ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
@@ -11,7 +11,7 @@ import { Secret } from "@/components/secret";
 import { bankUnlocked } from "@/lib/bank-unlock";
 import { PageHeader } from "@/components/shell";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
-import { addSalary, createRun } from "./actions";
+import { addSalary, clearSalaries, createRun } from "./actions";
 import { allowBankEdit } from "@/app/profile/bank-actions";
 
 export const metadata = { title: "Payroll" };
@@ -129,6 +129,12 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
                             <label className="field min-w-40 flex-1">Note<input name="note" placeholder={hist.length ? "Increment, promotion…" : "Joining salary"} className="input" /></label>
                             <button className="btn btn-primary"><Plus /> {hist.length ? "Add increment" : "Set salary"}</button>
                           </ActionForm>
+                          {!!hist.length && (
+                            <ActionForm action={clearSalaries} success="Salary history removed" confirm={`Remove ${p.full_name}'s entire salary history (${hist.length} record${hist.length === 1 ? "" : "s"})? This cannot be undone.`}>
+                              <input type="hidden" name="employee_id" value={p.id} />
+                              <button className="btn btn-ghost btn-danger"><Trash2 /> Remove salary history</button>
+                            </ActionForm>
+                          )}
                         </div>
                         <div className="space-y-4">
                           {bank && (bank.employee_can_edit ? (
@@ -151,6 +157,16 @@ export default async function Payroll({ searchParams }: PageProps<"/admin/payrol
             </ul>
           ) : <p className="empty">No employees.</p>}
         </section>
+
+        {admin && !!sals?.length && (
+          <section className="card border-red/30">
+            <h2 className="h2 text-red"><Trash2 /> Clear all salaries</h2>
+            <p className="mb-3 max-w-2xl text-sm text-muted">Deletes all {sals.length} salary record{sals.length === 1 ? "" : "s"} for every employee, with their increment history. Salary sheets that were already generated are not touched. You can enter salaries again afterwards.</p>
+            <ActionForm action={clearSalaries} success="All salaries cleared" confirm={`Delete ALL ${sals.length} salary records for every employee? This cannot be undone.`}>
+              <button className="btn btn-danger"><Trash2 /> Clear all salaries</button>
+            </ActionForm>
+          </section>
+        )}
 
         <section className="card">
           <h2 className="h2"><Calculator /> Salary calculator</h2>

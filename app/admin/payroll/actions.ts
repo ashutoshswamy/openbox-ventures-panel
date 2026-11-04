@@ -23,6 +23,16 @@ const prevDay = (d: string) => new Date(Date.parse(d + "T00:00:00Z") - 864e5).to
 
 // ── Salary ──
 
+// One person's whole salary history (employee_id), or every salary when no employee_id is sent (admin only, checked in SQL too).
+export async function clearSalaries(fd: FormData) {
+  const me = await payrollStaff();
+  const emp = str(fd, "employee_id");
+  if (!emp && me.role !== "admin") return "Only an admin can clear every salary";
+  const { error } = await db().rpc("clear_salaries", { p_emp: emp });
+  if (error) return error.message;
+  done();
+}
+
 export async function addSalary(fd: FormData) {
   await payrollStaff();
   const ctc = n(fd, "annual_ctc");
