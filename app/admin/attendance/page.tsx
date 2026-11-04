@@ -192,7 +192,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
 
       <section className="card">
         <h2 className="h2"><Download /> Export to CSV</h2>
-        <ExportForm action="/admin/attendance/export" date={date} office={office} />
+        <ExportForm action="/admin/attendance/export" date={date} office={office} people={people ?? []} />
       </section>
     </div>
     </>

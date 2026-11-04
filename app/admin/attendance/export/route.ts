@@ -24,18 +24,31 @@ export async function GET(req: Request) {
   const { from, to } = span(sp);
   let q = db()
     .from("attendance_report")
-    .select("date, full_name, email, office_name, mode, check_in_at, check_out_at, hours, late, early_leave, note")
+    .select("employee_id, date, full_name, email, office_name, mode, check_in_at, check_out_at, hours, late, early_leave, note")
     .gte("date", from || "1970-01-01")
     .lte("date", to || "2999-12-31")
-    .order("date")
-    .order("full_name");
+    .order("full_name")
+    .order("employee_id")
+    .order("date");
   const office = me.role === "admin" ? sp.get("office") : me.office_id;
   if (office) q = q.eq("office_id", office);
+  const who = sp.get("employee");
+  if (who) q = q.eq("employee_id", who);
   const { data, error } = await q;
   if (error) return new Response(error.message, { status: 400 });
 
   const cols = ["date", "full_name", "email", "office_name", "mode", "check_in_at", "check_out_at", "hours", "late", "early_leave", "note"] as const;
-  const csv = [cols.join(","), ...data.map((r) => cols.map((c) => cell(r[c])).join(","))].join("\n");
+  // one block per person: name/email/office only on their first row, blank line between people
+  const who3 = ["full_name", "email", "office_name"];
+  const lines: string[] = [cols.join(",")];
+  let prev: string | null = null;
+  for (const r of data) {
+    const first = r.employee_id !== prev;
+    if (first && prev) lines.push("");
+    lines.push(cols.map((c) => cell(!first && who3.includes(c) ? "" : r[c])).join(","));
+    prev = r.employee_id;
+  }
+  const csv = lines.join("\n");
   return new Response(csv, {
     headers: {
       "content-type": "text/csv",
