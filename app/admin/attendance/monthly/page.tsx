@@ -30,11 +30,12 @@ export default async function Monthly({ searchParams }: { searchParams: Promise<
   const to = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const days = eachDay(from, to);
   const sb = db();
+  const { data: depts0 } = await sb.from("departments").select("id, name, office_id").order("name");
 
   let emps = sb.from("employees").select("id, full_name, employee_code, office_id, department_id, joined_on, exit_date, office:offices(name), department:departments(name)").eq("active", true).not("clerk_user_id", "is", null).or("role.is.null,role.neq.admin").order("full_name");
   if (office) emps = emps.eq("office_id", office);
   if (me.role === "manager") emps = emps.eq("department_id", me.department_id ?? "");
-  else if (dept) emps = emps.eq("department_id", dept);
+  else if (dept) emps = emps.in("department_id", (depts0 ?? []).filter((d) => d.name === dept).map((d) => d.id)); // dept = name: the same department exists in every office
   // PostgREST returns at most 1000 rows per request: page through the month
   const att = async () => {
     const all: { employee_id: string; date: string; mode: string; late: boolean; check_in_at: string; check_out_at: string | null }[] = [];
@@ -46,10 +47,9 @@ export default async function Monthly({ searchParams }: { searchParams: Promise<
       if ((data?.length ?? 0) < 1000) return all;
     }
   };
-  const [{ data: all }, { data: offices }, { data: depts }, rows, { data: leaves }, { data: hols }] = await Promise.all([
+  const [{ data: all }, { data: offices }, rows, { data: leaves }, { data: hols }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, work_days, timezone").order("name"),
-    sb.from("departments").select("id, name, office_id").order("name"),
     att(),
     sb.from("leave_requests").select("employee_id, start_date, end_date").eq("status", "approved").lte("start_date", to).gte("end_date", from),
     sb.from("holidays").select("office_id, date").gte("date", from).lte("date", to),
@@ -98,7 +98,7 @@ export default async function Monthly({ searchParams }: { searchParams: Promise<
           {me.role !== "manager" && (
             <select name="dept" defaultValue={dept ?? ""} className="input w-auto" aria-label="Department">
               <option value="">All departments</option>
-              {depts?.filter((d) => !office || d.office_id === office).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {[...new Set((depts0 ?? []).filter((d) => !office || d.office_id === office).map((d) => d.name))].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           )}
         </AutoForm>

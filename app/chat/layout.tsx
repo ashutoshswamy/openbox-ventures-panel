@@ -56,7 +56,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/chat">) {
             { title: "Company", rows: rows.filter((r) => r.announcements || r.type === "global") },
             { title: "Offices", rows: officeRows, nest: true },
             { title: "Groups", rows: rows.filter((r) => r.type === "group" && !r.announcements) },
-            { title: "Direct messages", rows: rows.filter((r) => r.type === "dm") },
+            { title: "Direct messages", rows: rows.filter((r) => r.type === "dm"), removable: true },
             { title: hr ? "All group chats (manage members)" : "All group chats", rows: others.filter((r) => r.type !== "group"), nest: true },
             { title: "Other group chats", rows: others.filter((r) => r.type === "group") },
             { title: "All direct messages", rows: dmRows },

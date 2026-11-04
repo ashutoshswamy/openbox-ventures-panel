@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { rateLimit, requireMe } from "@/lib/me";
 import { checkPassword } from "@/lib/reauth";
 import { dms } from "@/lib/dm-unlock";
+import { db } from "@/lib/supabase";
 
 // Admin re-enters their password to read DMs they're not in, for 15 minutes.
 export async function unlockDms(fd: FormData) {
@@ -18,5 +19,13 @@ export async function unlockDms(fd: FormData) {
 
 export async function lockDms() {
   await dms.clear();
+  revalidatePath("/chat", "layout");
+}
+
+// Remove a DM from my list. Messages are kept; the chat returns when a new message arrives (see hide_dm in the DB).
+export async function hideDm(id: string) {
+  await requireMe();
+  const { error } = await db().rpc("hide_dm", { p_channel: id });
+  if (error) return error.message;
   revalidatePath("/chat", "layout");
 }

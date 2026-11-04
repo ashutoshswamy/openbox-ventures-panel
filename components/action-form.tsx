@@ -39,8 +39,14 @@ export function ActionForm({
         btn?.setAttribute("data-loading", "");
         start(async () => {
           // thrown = auth / rate limit / crash (message hidden in production builds)
-          const err = await action(fd).catch(() => "Something went wrong, or too many requests. Wait a moment and try again.");
+          // A server action that calls redirect() rejects its promise on the client (Next hands the redirect to the router): that is a success, not a crash
+          let redirected = false;
+          const err = await action(fd).catch((e: unknown) => {
+            if (String((e as { digest?: unknown })?.digest ?? "").startsWith("NEXT_REDIRECT")) { redirected = true; return null; }
+            return "Something went wrong, or too many requests. Wait a moment and try again.";
+          });
           btn?.removeAttribute("data-loading");
+          if (redirected) { busy.current = false; return; }
           if (err) sileo.error({ title: "Couldn't save", description: err });
           else {
             if (success !== false) sileo.success({ title: success ?? "Done" });
