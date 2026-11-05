@@ -1,0 +1,9 @@
+import { adminPage } from "@/lib/me";
+import { JobsBoard } from "@/components/jobs-board";
+
+export const metadata = { title: "Jobs" };
+
+export default async function Jobs() {
+  await adminPage();
+  return <JobsBoard />;
+}

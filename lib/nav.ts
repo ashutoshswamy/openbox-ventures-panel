@@ -47,6 +47,7 @@ export async function adminNav(me: Assigned) {
     links.push(["/chat", "Chat", "chat"]);
     links.push(["/admin/chats", "Group chats", "chat"]);
     links.push(["/admin/payroll", "Payroll", "payroll"]);
+    links.push(["/admin/jobs", "Jobs", "jobs"]);
     links.push(["/admin/issues", "Issues", "issues", issues ?? 0]);
     links.push(["/admin/audit", "Audit log", "audit"]);
   }

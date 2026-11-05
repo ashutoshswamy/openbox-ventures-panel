@@ -5,6 +5,7 @@ const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? `local-${Date.now()}`;
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: { serverActions: { bodySizeLimit: "5mb" } }, // resume uploads on /careers (cap 4 MB)
   generateBuildId: async () => BUILD_ID,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   // Clerk-hosted profile photos
@@ -25,8 +26,8 @@ const nextConfig: NextConfig = {
       },
       // service worker must never be cached stale
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
-      // behind login: keep out of search (covers files + CSV too). /sign-in is the one indexable page.
-      { source: "/:path((?!sign-in(?:/|$)|robots\\.txt$|sitemap\\.xml$).*)", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // behind login: keep out of search (covers files + CSV too). /sign-in and /careers are the indexable pages.
+      { source: "/:path((?!sign-in(?:/|$)|careers(?:/|$)|robots\\.txt$|sitemap\\.xml$).*)", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };

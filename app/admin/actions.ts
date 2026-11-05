@@ -399,3 +399,50 @@ export async function syncReminders() {
   if (error) return error.message;
   revalidatePath("/", "layout");
 }
+
+// ── Jobs (admin + HR; public applications live in app/careers/actions.ts) ──
+
+async function requireHiring() {
+  const me = await requireStaff();
+  if (me.role !== "admin" && me.role !== "hr") throw new Error("Forbidden");
+  return me;
+}
+
+export async function saveJob(fd: FormData) {
+  const me = await requireHiring();
+  const title = str(fd, "title");
+  const description = str(fd, "description");
+  if (!title || !description) return "Title and description are required";
+  const { error } = await db().from("jobs").insert({
+    title, description, department: str(fd, "department"), location: str(fd, "location"), type: str(fd, "type") ?? "full_time", created_by: me.id,
+  });
+  if (error) return error.message;
+  done();
+}
+
+export async function setJobOpen(fd: FormData) {
+  await requireHiring();
+  const { error } = await db().from("jobs").update({ open: str(fd, "open") === "true" }).eq("id", str(fd, "id"));
+  if (error) return error.message;
+  done();
+}
+
+export async function deleteJob(fd: FormData) {
+  await requireHiring();
+  const id = str(fd, "id");
+  const sb = db();
+  const { data: apps } = await sb.from("job_applications").select("resume_path").eq("job_id", id);
+  const { error } = await sb.from("jobs").delete().eq("id", id);
+  if (error) return error.message;
+  if (apps?.length) await adminDb().storage.from("resumes").remove(apps.map((a) => a.resume_path));
+  done();
+}
+
+export async function setApplicationStatus(fd: FormData) {
+  await requireHiring();
+  const status = str(fd, "status");
+  if (!status || !["new", "shortlisted", "rejected", "hired"].includes(status)) return "Invalid status";
+  const { error } = await db().from("job_applications").update({ status }).eq("id", str(fd, "id"));
+  if (error) return error.message;
+  done();
+}
