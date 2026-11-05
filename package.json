@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test:rls": "node supabase/tests/rls.test.mjs",
     "reset-clerk": "node --env-file=.env.local scripts/reset-clerk.mjs",
+    "tidy-existing": "npx tsx --env-file=.env.local scripts/tidy-existing.mts",
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
     "demo:seed": "node --env-file=.env.local scripts/demo-data.mjs seed",
     "demo:unseed": "node --env-file=.env.local scripts/demo-data.mjs unseed"

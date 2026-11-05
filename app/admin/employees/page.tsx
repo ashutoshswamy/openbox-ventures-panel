@@ -5,6 +5,7 @@ import { adminDb, db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
 import { Archive, Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
+import { PhoneInput } from "@/components/phone-input";
 import { Avatar } from "@/components/avatar";
 import { AutoForm } from "@/components/auto-form";
 import { Pager } from "@/components/pager";
@@ -101,7 +102,7 @@ function Details({ e, p }: { e: Emp; p?: Profile }) {
           {GENDERS.map((g) => <option key={g}>{g}</option>)}
         </select>
       </label>
-      <label className="field">Mobile<input type="tel" name="phone" required defaultValue={p.phone} className="input" /></label>
+      <label className="field">Mobile<PhoneInput name="phone" required defaultValue={p.phone} /></label>
       <label className="field">Personal email<input type="email" name="personal_email" defaultValue={p.personal_email ?? ""} className="input" /></label>
       <label className="field">Blood group
         <select name="blood_group" defaultValue={p.blood_group ?? ""} className="input">
@@ -125,7 +126,7 @@ function Details({ e, p }: { e: Emp; p?: Profile }) {
       <label className="field sm:col-span-2">Permanent address<textarea name="permanent_address" rows={2} defaultValue={p.permanent_address ?? ""} className="input" /></label>
       <label className="field">Emergency contact name<input name="emergency_name" required defaultValue={p.emergency_name} className="input" /></label>
       <label className="field">Relationship<input name="emergency_relation" required defaultValue={p.emergency_relation} className="input" /></label>
-      <label className="field">Emergency phone<input type="tel" name="emergency_phone" required defaultValue={p.emergency_phone} className="input" /></label>
+      <label className="field">Emergency phone<PhoneInput name="emergency_phone" required defaultValue={p.emergency_phone} /></label>
       <label className="field sm:col-span-2">Reason for the change
         <input name="reason" required minLength={5} maxLength={500} placeholder="e.g. Employee sent a corrected ID by email" className="input" />
       </label>

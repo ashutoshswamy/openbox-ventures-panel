@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ArrowRight, Clock, Lock, Save, Send } from "lucide-react";
+import { PhoneInput } from "@/components/phone-input";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PhotoPicker } from "@/components/photo-picker";
@@ -108,7 +109,7 @@ export default async function Profile() {
                   {GENDERS.map((g) => <option key={g}>{g}</option>)}
                 </select>
               </label>
-              <label className="field">Mobile number {req}<input type="tel" name="phone" required autoComplete="tel" defaultValue={p?.phone ?? ""} placeholder="+91 98765 43210" className={input} /></label>
+              <label className="field">Mobile number {req}<PhoneInput name="phone" required autoComplete="tel" defaultValue={p?.phone ?? ""} className={input} /></label>
               <label className="field">Personal email<input type="email" name="personal_email" autoComplete="email" defaultValue={p?.personal_email ?? ""} className={input} /></label>
               <label className="field">Blood group
                 <select name="blood_group" defaultValue={p?.blood_group ?? ""} className={input}>
@@ -142,17 +143,17 @@ export default async function Profile() {
             <Section title="Emergency contact" hint="Someone we can call if something happens at work.">
               <label className="field sm:col-span-2">Name {req}<input name="emergency_name" required defaultValue={p?.emergency_name ?? ""} className={input} /></label>
               <label className="field">Relationship {req}<input name="emergency_relation" required defaultValue={p?.emergency_relation ?? ""} placeholder="e.g. Mother, Spouse" className={input} /></label>
-              <label className="field">Phone {req}<input type="tel" name="emergency_phone" required defaultValue={p?.emergency_phone ?? ""} className={input} /></label>
+              <label className="field">Phone {req}<PhoneInput name="emergency_phone" required defaultValue={p?.emergency_phone ?? ""} className={input} /></label>
             </Section>
 
             {onboarding && (
               <Section title="Bank details" hint="Where your salary is paid. Locked after saving; changes need HR approval.">
                 <label className="field">Account holder name {req}<input name="holder_name" required className={input} /></label>
                 <label className="field">Bank name {req}<input name="bank_name" required className={input} /></label>
-                <label className="field">Account number {req}<input name="account_number" required inputMode="numeric" pattern="[0-9]{6,20}" className={input} /></label>
-                <label className="field">IFSC {req}<input name="ifsc" required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" placeholder="HDFC0001234" className={`${input} uppercase`} /></label>
-                <label className="field">PAN<input name="pan" pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]" placeholder="ABCDE1234F" className={`${input} uppercase`} /></label>
-                <label className="field">UAN (optional)<input name="uan" inputMode="numeric" pattern="[0-9]{12}" className={input} /></label>
+                <label className="field">Account number {req}<input name="account_number" required inputMode="numeric" className={input} /></label>
+                <label className="field">IFSC {req}<input name="ifsc" required placeholder="HDFC0001234" className={`${input} uppercase`} /></label>
+                <label className="field">PAN<input name="pan" placeholder="ABCDE1234F" className={`${input} uppercase`} /></label>
+                <label className="field">UAN (optional)<input name="uan" inputMode="numeric" className={input} /></label>
               </Section>
             )}
 

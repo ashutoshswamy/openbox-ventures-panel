@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getMe, rateLimit } from "@/lib/me";
 import { adminDb } from "@/lib/supabase";
-import { parseProfile } from "@/lib/profile";
+import { parseProfile, tidyName, tidyOrg } from "@/lib/profile";
 import { str } from "@/lib/util";
 
 // Server key on purpose: users waiting for a role have no RLS access yet. Writes only the caller's own row.
@@ -20,7 +20,7 @@ export async function saveProfile(fd: FormData) {
   let bank = null;
   if (!me.onboarded) {
     const f = (k: string) => str(fd, k) ?? "";
-    const [holder, bankName, account, ifsc, pan, uan] = [f("holder_name"), f("bank_name"), f("account_number"), f("ifsc").toUpperCase(), f("pan").toUpperCase(), f("uan")];
+    const [holder, bankName, account, ifsc, pan, uan] = [tidyName(f("holder_name"))!, tidyOrg(f("bank_name"))!, f("account_number").replace(/[\s-]/g, ""), f("ifsc").replace(/\s/g, "").toUpperCase(), f("pan").replace(/\s/g, "").toUpperCase(), f("uan").replace(/[\s-]/g, "")];
     if (!holder || !bankName || !account || !ifsc) return "Bank details are required";
     if (!/^[0-9]{6,20}$/.test(account)) return "Invalid account number";
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return "Invalid IFSC";
