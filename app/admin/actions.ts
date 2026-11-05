@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { requireAdmin, requireStaff, type Role } from "@/lib/me";
-import { issueLink, mail } from "@/lib/completion";
+import { mail, missing } from "@/lib/completion";
 import { parseProfile } from "@/lib/profile";
 import { adminDb, db } from "@/lib/supabase";
 import { DEFAULT_TZ, SITE_URL, str, todayIn, zonedIso } from "@/lib/util";
@@ -234,18 +234,18 @@ export async function editPersonalDetails(fd: FormData) {
   done();
 }
 
-// Admin + HR (own office): link for someone who hasn't filled in their details or bank account. Emailed when mail is set up
-// (RESEND_API_KEY + MAIL_FROM), always returned so it can be shared by hand. Scope checked here, same as editPersonalDetails.
+// Admin + HR (own office): ask someone to finish their details / bank account. The link only opens /complete, which needs their own
+// sign-in, so it is safe to share. Emailed when mail is set up (RESEND_API_KEY + MAIL_FROM), always returned to share by hand.
 export async function sendCompletionLink(id: string): Promise<{ url?: string; emailed?: boolean; error?: string }> {
   const me = await requireStaff();
   if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
   const { data: emp } = await adminDb().from("employees").select("email, full_name, office_id, role, active").eq("id", id).maybeSingle();
   if (!emp?.active || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return { error: "Not allowed" };
-  const link = await issueLink(id, me.id);
-  if (!link.url) return link;
+  if (!(await missing(id))) return { error: "Details and bank account are already filled in" };
+  const url = `${SITE_URL}/complete`;
   const emailed = await mail(emp.email, "Complete your details at Open Box Ventures",
-    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease fill in your remaining details here (the link works once and expires in 7 days):\n${link.url}\n\nOpen Box Ventures LLP`);
-  return { url: link.url, emailed };
+    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`);
+  return { url, emailed };
 }
 
 // ── Document vault ──
@@ -258,7 +258,7 @@ const DOC_TYPES: Record<string, string> = {
 };
 const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other"];
 
-// null = may manage this person's documents
+// scope.me set = may manage this person's documents
 async function docScope(employeeId: string | null) {
   const me = await requireStaff();
   if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" as const };

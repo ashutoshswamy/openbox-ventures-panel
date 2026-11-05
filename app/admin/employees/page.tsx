@@ -303,7 +303,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                       {pending && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="h2"><MailCheck /> Missing details</h3>
-                          <p className="mb-3 text-sm text-muted">Still to fill in: {[!profileOf(e.id) && "personal details", !hasBank(e.id) && "bank account"].filter(Boolean).join(" and ")}. They get a private link to finish it without signing in.</p>
+                          <p className="mb-3 text-sm text-muted">Still to fill in: {[!profileOf(e.id) && "personal details", !hasBank(e.id) && "bank account"].filter(Boolean).join(" and ")}. They finish it after signing in with their own account.</p>
                           <CompletionLink id={e.id} missing={!profileOf(e.id) && !hasBank(e.id) ? "details" : !profileOf(e.id) ? "personal details" : "bank details"} />
                         </section>
                       )}

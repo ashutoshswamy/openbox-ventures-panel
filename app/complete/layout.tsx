@@ -1,7 +1,7 @@
 import { Logo } from "@/components/logo";
 
-// Public (the link is the credential): no login, no panel shell, kept out of search and out of Referer headers.
-export const metadata = { title: "Complete your details", robots: { index: false, follow: false }, referrer: "no-referrer" as const };
+// Behind sign-in (see page): only the employee themselves can fill in their own details.
+export const metadata = { title: "Complete your details", robots: { index: false, follow: false } };
 
 export default function CompleteLayout({ children }: { children: React.ReactNode }) {
   return (
