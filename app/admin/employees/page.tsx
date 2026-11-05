@@ -3,7 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
-import { Archive, Ban, ChevronDown, ClipboardList, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
+import { Archive, Ban, ChevronDown, ClipboardList, FolderLock, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, Upload, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { PhoneInput } from "@/components/phone-input";
 import { Avatar } from "@/components/avatar";
@@ -12,7 +12,9 @@ import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
 import { PersonSelect } from "@/components/person-select";
-import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee } from "../actions";
+import { CompletionLink } from "@/components/completion-link";
+import { CATEGORIES, type Doc, DocumentList } from "@/components/documents";
+import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee, uploadDocument } from "../actions";
 
 export const metadata = { title: "Employees" };
 
@@ -177,10 +179,15 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   // Roles live in Clerk publicMetadata of joined users.
   // ponytail: single page of 500 users; paginate past that.
   const linked = (emps ?? []).flatMap((e: Emp) => (e.clerk_user_id ? [e.clerk_user_id] : []));
-  const [users, { data: profiles }] = await Promise.all([
+  const ids = (emps ?? []).map((e: Emp) => e.id);
+  const [users, { data: profiles }, { data: banks }, { data: docs }] = await Promise.all([
     linked.length ? (await clerkClient()).users.getUserList({ userId: linked, limit: 500 }) : { data: [] },
-    canEdit ? adminDb().from("employee_profiles").select("*").in("employee_id", (emps ?? []).map((e: Emp) => e.id)) : { data: [] }, // server key: RLS hides profiles from HR
+    canEdit ? adminDb().from("employee_profiles").select("*").in("employee_id", ids) : { data: [] }, // server key: RLS hides profiles from HR
+    canEdit ? sb.from("employee_bank").select("employee_id").in("employee_id", ids) : { data: [] }, // RLS: admin + HR of the office
+    canEdit ? sb.from("employee_documents").select("id, employee_id, category, title, expires_on, created_at").in("employee_id", ids).order("created_at", { ascending: false }) : { data: [] },
   ]);
+  const hasBank = (id: string) => !!banks?.some((b) => b.employee_id === id);
+  const docsOf = (id: string) => (docs ?? []).filter((d) => d.employee_id === id) as Doc[];
   const profileOf = (id: string) => (profiles as Profile[] | null)?.find((p) => p.employee_id === id);
   const roleOf = (e: Emp) => (users.data.find((u) => u.id === e.clerk_user_id)?.publicMetadata?.role as Role | undefined) ?? null;
   const name = (list: Opt[] | null, id: string | null) => list?.find((x) => x.id === id)?.name;
@@ -192,6 +199,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
     Exited: ["", Archive],
     Invited: ["badge-blue", MailCheck],
     "Needs role": ["badge-amber", Hourglass],
+    "Details pending": ["badge-amber", ClipboardList],
   } as const;
 
   return (
@@ -259,7 +267,9 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
           {emps?.map((e: Emp) => {
             const r = roleOf(e);
             const exited = !!e.exit_date && e.exit_date <= today;
-            const status = exited ? "Exited" : !e.active ? "Inactive" : !e.clerk_user_id ? "Invited" : !r ? "Needs role" : null;
+            // admins have no details form; HR/admin viewers only (profiles + banks are fetched for them)
+            const pending = canEdit && e.active && !exited && r !== "admin" && (!profileOf(e.id) || !hasBank(e.id));
+            const status = exited ? "Exited" : !e.active ? "Inactive" : !e.clerk_user_id ? "Invited" : !r ? "Needs role" : pending ? "Details pending" : null;
             const StatusIcon = status ? STATUS[status][1] : null;
             return (
               <li key={e.id}>
@@ -290,10 +300,33 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                   </summary>
                   {canEdit && (
                     <div className="space-y-4 border-t border-line bg-surface-2/50 px-5 py-5">
+                      {pending && (
+                        <section className="rounded-xl border border-line bg-surface p-4">
+                          <h3 className="h2"><MailCheck /> Missing details</h3>
+                          <p className="mb-3 text-sm text-muted">Still to fill in: {[!profileOf(e.id) && "personal details", !hasBank(e.id) && "bank account"].filter(Boolean).join(" and ")}. They get a private link to finish it without signing in.</p>
+                          <CompletionLink id={e.id} missing={!profileOf(e.id) && !hasBank(e.id) ? "details" : !profileOf(e.id) ? "personal details" : "bank details"} />
+                        </section>
+                      )}
                       {e.clerk_user_id && r !== "admin" && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="h2"><ClipboardList /> Personal details</h3>
                           <Details e={e} p={profileOf(e.id)} />
+                        </section>
+                      )}
+                      {(isAdmin || e.id !== me.id) && (
+                        <section className="rounded-xl border border-line bg-surface p-4">
+                          <h3 className="h2"><FolderLock /> Documents</h3>
+                          <DocumentList docs={docsOf(e.id)} canDelete />
+                          <ActionForm action={uploadDocument} className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
+                            <input type="hidden" name="employee_id" value={e.id} />
+                            <label className="field">Title<input name="title" required maxLength={200} placeholder="e.g. Offer letter 2026" className="input" /></label>
+                            <label className="field">Category
+                              <select name="category" required className="input">{CATEGORIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                            </label>
+                            <label className="field">File (PDF, image or Word, up to 4 MB)<input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx" className="input" /></label>
+                            <label className="field">Expires on (optional)<input type="date" name="expires_on" className="input" /></label>
+                            <div className="sm:col-span-2"><button className="btn btn-primary"><Upload /> Upload</button></div>
+                          </ActionForm>
                         </section>
                       )}
                       {isAdmin && <>

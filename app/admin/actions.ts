@@ -1,8 +1,10 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { requireAdmin, requireStaff, type Role } from "@/lib/me";
+import { issueLink, mail } from "@/lib/completion";
 import { parseProfile } from "@/lib/profile";
 import { adminDb, db } from "@/lib/supabase";
 import { DEFAULT_TZ, SITE_URL, str, todayIn, zonedIso } from "@/lib/util";
@@ -229,6 +231,74 @@ export async function editPersonalDetails(fd: FormData) {
     old: Object.fromEntries(changed.map((k) => [k, prev[k] ?? null])),
     new: Object.fromEntries(changed.map((k) => [k, next[k as keyof typeof next]])),
   });
+  done();
+}
+
+// Admin + HR (own office): link for someone who hasn't filled in their details or bank account. Emailed when mail is set up
+// (RESEND_API_KEY + MAIL_FROM), always returned so it can be shared by hand. Scope checked here, same as editPersonalDetails.
+export async function sendCompletionLink(id: string): Promise<{ url?: string; emailed?: boolean; error?: string }> {
+  const me = await requireStaff();
+  if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
+  const { data: emp } = await adminDb().from("employees").select("email, full_name, office_id, role, active").eq("id", id).maybeSingle();
+  if (!emp?.active || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return { error: "Not allowed" };
+  const link = await issueLink(id, me.id);
+  if (!link.url) return link;
+  const emailed = await mail(emp.email, "Complete your details at Open Box Ventures",
+    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease fill in your remaining details here (the link works once and expires in 7 days):\n${link.url}\n\nOpen Box Ventures LLP`);
+  return { url: link.url, emailed };
+}
+
+// ── Document vault ──
+// Admin + HR (own office, not themselves) keep files for a person; the person and the same admin/HR read them.
+// Uploads go through here (4 MB, Vercel's request cap) and are written with the server key: employee_documents has no client writes.
+
+const DOC_TYPES: Record<string, string> = {
+  pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", heic: "image/heic",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other"];
+
+// null = may manage this person's documents
+async function docScope(employeeId: string | null) {
+  const me = await requireStaff();
+  if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" as const };
+  const { data: emp } = await adminDb().from("employees").select("office_id").eq("id", employeeId ?? "").maybeSingle();
+  if (!emp || (me.role === "hr" && (emp.office_id !== me.office_id || employeeId === me.id))) return { error: "Not allowed" as const };
+  return { me };
+}
+
+export async function uploadDocument(fd: FormData) {
+  const id = str(fd, "employee_id");
+  const scope = await docScope(id);
+  if (!scope.me) return scope.error;
+  const title = str(fd, "title"), category = str(fd, "category"), file = fd.get("file");
+  if (!title || title.length > 200) return "Give the document a title (up to 200 characters)";
+  if (!category || !DOC_CATEGORIES.includes(category)) return "Pick a category";
+  if (!(file instanceof File) || !file.size) return "Choose a file";
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!Object.hasOwn(DOC_TYPES, ext)) return "Use a PDF, image or Word file";
+  if (file.size > 4 * 1024 * 1024) return "File must be under 4 MB";
+
+  const sb = adminDb();
+  const path = `${id}/${randomUUID()}.${ext}`;
+  const up = await sb.storage.from("documents").upload(path, file, { contentType: DOC_TYPES[ext] });
+  if (up.error) return "Couldn't upload the file. Try again.";
+  const { error } = await sb.from("employee_documents").insert({ employee_id: id, category, title, path, expires_on: str(fd, "expires_on"), uploaded_by: scope.me.id });
+  if (error) {
+    await sb.storage.from("documents").remove([path]);
+    return error.message;
+  }
+  done();
+}
+
+export async function deleteDocument(fd: FormData) {
+  const sb = adminDb();
+  const { data: doc } = await sb.from("employee_documents").select("id, employee_id, path").eq("id", str(fd, "id") ?? "").maybeSingle();
+  const scope = await docScope(doc?.employee_id ?? null);
+  if (!doc || !scope.me) return scope.error ?? "Not found";
+  const { error } = await sb.from("employee_documents").delete().eq("id", doc.id);
+  if (error) return error.message;
+  await sb.storage.from("documents").remove([doc.path]);
   done();
 }
 

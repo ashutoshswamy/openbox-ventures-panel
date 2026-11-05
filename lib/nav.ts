@@ -17,6 +17,7 @@ export function employeeNav(me: Assigned) {
     ["/time-zones", "Time zones", "timezones"],
     ["/reviews", "Reviews", "reviews"],
     ["/payslips", "Payslips", "payroll"],
+    ["/documents", "Documents", "documents"],
     ["/profile", "My details", "profile"],
     ["/support", "Report an issue", "support"],
   ];

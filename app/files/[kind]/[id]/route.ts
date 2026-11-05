@@ -7,6 +7,7 @@ import { mediaKind } from "@/lib/util";
 const sources = {
   leave: { table: "leave_requests", column: "doc_path", bucket: "leave-docs" },
   msg: { table: "messages", column: "attachment_path", bucket: "attachments" },
+  doc: { table: "employee_documents", column: "path", bucket: "documents" }, // RLS: the person, admin, HR of their office
   resume: { table: "job_applications", column: "resume_path", bucket: "resumes" }, // RLS: admin + HR only
 } as const;
 

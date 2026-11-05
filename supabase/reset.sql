@@ -7,7 +7,7 @@ drop view if exists leave_balances, attendance_report cascade;
 
 -- (announcements table, user_role type: from older schema versions, dropped if still around)
 drop table if exists
-  presence, message_reactions, reviews, review_cycles, compiled_reports, work_reports, audit_log, rate_limits, call_participants, calls, payroll_lines, payroll_runs, employee_bank, employee_salaries, reminder_log, regularizations, todos, employee_profiles, issues, messages, channel_members, channels, announcements,
+  completion_links, employee_documents, presence, message_reactions, reviews, review_cycles, compiled_reports, work_reports, audit_log, rate_limits, call_participants, calls, payroll_lines, payroll_runs, employee_bank, employee_salaries, reminder_log, regularizations, todos, employee_profiles, issues, messages, channel_members, channels, announcements,
   leave_carry_forward, leave_requests, leave_types, holidays,
   attendance, employees, departments, offices
 cascade;
