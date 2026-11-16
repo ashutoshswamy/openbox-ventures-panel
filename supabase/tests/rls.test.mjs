@@ -382,13 +382,14 @@ assert.equal(await as("u_hr", "select pan from employee_bank"), "ABCDE1234F", "H
 assert.equal(await as("u_mgr", "select count(*) from employee_bank"), "0");
 assert.equal(await as("u_e2", "select count(*) from employee_bank"), "0");
 // sheet
-const line = (emp) => `{"employee_id":"${emp}","basic":25000,"hra":10000,"special":14000,"gross":49000,"employee_pf":1800,"employer_pf":1800,"pt":200,"lop_days":1}`;
+const line = (emp) => `{"employee_id":"${emp}","basic":25000,"hra":10000,"special":10000,"other_allowance":4000,"gross":49000,"employee_pf":1800,"employer_pf":1800,"pt":200,"lop_days":1}`;
 const e1id = await as("u_admin", "select id from employees where email = 'e1@x.com'"), e2id = await as("u_admin", "select id from employees where email = 'e2@x.com'");
 assert.match(await err("u_mgr", `select create_payroll_run('2026-10-15', null, '[]')`), /Not allowed/);
 assert.match(await err("u_hr", `select create_payroll_run('2026-10-01', null, '[]')`), /Not allowed/, "HR needs an office");
 assert.match(await err("u_hr", `select create_payroll_run('2026-10-01', '00000000-0000-0000-0000-00000000000a', '[${line(e2id)}]')`), /out of scope/);
 const runId = await as("u_hr", `select create_payroll_run('2026-10-15', '00000000-0000-0000-0000-00000000000a', '[${line(e1id)}]')`);
 assert.match(await err("u_admin", `select create_payroll_run('2026-10-01', null, '[]')`), /already exists/);
+assert.equal(await as("u_hr", "select other_allowance from payroll_lines"), "4000.00", "Other Allowance persisted separately");
 assert.equal(await as("u_hr", `select lop_amount || '/' || net from payroll_lines`), "1580.65/45419.35", "derived in SQL");
 assert.equal(await as("u_mgr", "select count(*) from payroll_runs"), "0");
 assert.equal(await as("u_e1", "select count(*) from payroll_lines"), "0");

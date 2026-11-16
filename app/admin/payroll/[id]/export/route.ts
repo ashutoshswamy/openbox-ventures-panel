@@ -6,7 +6,7 @@ const cell = (v: unknown) => {
   if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // block spreadsheet formula injection
   return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 };
-const cols = ["basic", "hra", "special", "gross", "employee_pf", "employer_pf", "employee_esi", "employer_esi", "pt", "lop_days", "lop_amount", "tds", "other_deductions", "net"] as const;
+const cols = ["basic", "hra", "special", "other_allowance", "gross", "employee_pf", "employer_pf", "employee_esi", "employer_esi", "pt", "lop_days", "lop_amount", "tds", "other_deductions", "net"] as const;
 
 // RLS scopes the run and its lines (admin: all, HR: own office).
 export async function GET(_: Request, { params }: RouteContext<"/admin/payroll/[id]/export">) {

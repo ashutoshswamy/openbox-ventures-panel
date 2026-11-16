@@ -11,7 +11,7 @@ import { deleteRun, reviewRun, submitRun, updateLine } from "../actions";
 
 export const metadata = { title: "Salary sheet" };
 
-const SUMS = ["basic", "hra", "special", "gross", "employee_pf", "employee_esi", "pt", "lop_amount", "tds", "other_deductions", "net"] as const;
+const SUMS = ["basic", "hra", "special", "other_allowance", "gross", "employee_pf", "employee_esi", "pt", "lop_amount", "tds", "other_deductions", "net"] as const;
 
 export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">) {
   const me = await staffPage();
@@ -42,9 +42,9 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
           <table className="table">
             <thead>
               <tr>
-                <th>Employee</th><th className="text-right">Basic</th><th className="text-right">HRA</th><th className="text-right">Special</th><th className="text-right">Gross</th>
+                <th>Employee</th><th className="text-right">Basic</th><th className="text-right">HRA</th><th className="text-right">Special</th><th className="text-right">Other allowance</th><th className="text-right">Gross</th>
                 <th className="text-right">PF</th><th className="text-right">ESI</th><th className="text-right">PT</th><th className="text-right">LOP</th>
-                <th className="text-right">TDS</th><th className="text-right">Other</th><th className="text-right">Net</th>{draft && <th />}
+                <th className="text-right">TDS</th><th className="text-right">Other deductions</th><th className="text-right">Net</th>{draft && <th />}
               </tr>
             </thead>
             <tbody className="tabular-nums">
