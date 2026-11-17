@@ -23,7 +23,7 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
   const sb = db();
   const [{ data: balances }, { data: types }, { data: requests, count }, { data: holidays }, { data: monthLeaves }, { data: monthHols }, { data: office }] = await Promise.all([
     sb.from("leave_balances").select("*").eq("employee_id", me.id).order("name"),
-    sb.from("leave_types").select("id, name, allow_half_day, doc_required_after_days").eq("active", true).order("name"),
+    sb.from("leave_types").select("id, name, paid, allow_half_day, doc_required_after_days").eq("active", true).order("name"),
     sb.from("leave_requests").select("*, type:leave_types(name)", { count: "exact" }).eq("employee_id", me.id).order("start_date", { ascending: false }).range(r0, r1),
     sb.from("holidays").select("date, name").gte("date", new Date().toISOString().slice(0, 10)).order("date").limit(8),
     sb.from("leave_requests").select("start_date, end_date, half_day, status, type:leave_types(name)").eq("employee_id", me.id).in("status", ["approved", "pending", "manager_approved"]).lte("start_date", to).gte("end_date", from),
@@ -122,7 +122,7 @@ export default async function Leave({ searchParams }: PageProps<"/leave">) {
                 <select name="leave_type_id" required className="input">
                   {types?.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name}{t.doc_required_after_days != null ? ` - document needed over ${t.doc_required_after_days} days` : ""}
+                      {t.name}{t.paid ? " - max 1 day" : ""}{t.doc_required_after_days != null ? ` - document needed over ${t.doc_required_after_days} days` : ""}
                     </option>
                   ))}
                 </select>

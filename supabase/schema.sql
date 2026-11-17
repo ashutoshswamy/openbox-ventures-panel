@@ -699,6 +699,7 @@ begin
 
   n := leave_days(e.id, p_start, p_end, p_half);
   if n = 0 then raise exception 'No working days in that range'; end if;
+  if t.paid and n > 1 then raise exception 'Paid leave is limited to 1 day per request. Apply for LOP or WFH for longer leave'; end if;
 
   if exists (select 1 from leave_requests
              where employee_id = e.id and status in ('pending', 'manager_approved', 'approved')

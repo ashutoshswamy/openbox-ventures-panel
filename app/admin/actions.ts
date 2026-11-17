@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { clerkClient } from "@clerk/nextjs/server";
 import { requireAdmin, requireStaff, type Role } from "@/lib/me";
-import { mail, missing } from "@/lib/completion";
+import { completionEmail, mail, missing } from "@/lib/completion";
 import { parseProfile } from "@/lib/profile";
 import { adminDb, db } from "@/lib/supabase";
 import { DEFAULT_TZ, SITE_URL, str, todayIn, zonedIso } from "@/lib/util";
@@ -235,8 +235,8 @@ export async function editPersonalDetails(fd: FormData) {
 }
 
 // Admin + HR (own office): ask someone to finish their details / bank account. The link only opens /complete, which needs their own
-// sign-in, so it is safe to share. Emailed when mail is set up (RESEND_API_KEY + MAIL_FROM), always returned to share by hand.
-export async function sendCompletionLink(id: string): Promise<{ url?: string; emailed?: boolean; error?: string }> {
+// sign-in, so it is safe to share. Emailed via Resend (RESEND_API_KEY + MAIL_FROM).
+export async function sendCompletionLink(id: string): Promise<{ error?: string }> {
   const me = await requireStaff();
   if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
   const { data: emp } = await adminDb().from("employees").select("email, full_name, office_id, role, active").eq("id", id).maybeSingle();
@@ -244,8 +244,8 @@ export async function sendCompletionLink(id: string): Promise<{ url?: string; em
   if (!(await missing(id))) return { error: "Details and bank account are already filled in" };
   const url = `${SITE_URL}/complete`;
   const emailed = await mail(emp.email, "Complete your details at Open Box Ventures",
-    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`);
-  return { url, emailed };
+    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL));
+  return emailed ? {} : { error: "Email failed. Check RESEND_API_KEY and MAIL_FROM, or try again." };
 }
 
 // ── Document vault ──
