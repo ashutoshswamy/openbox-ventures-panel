@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { SignIn } from "@clerk/nextjs";
 import { SHARE, SITE_URL } from "@/lib/util";
 import { AuthFrame, authAppearance } from "@/components/auth-frame";
+import { HomeChoice } from "@/components/home-choice";
 
-const title = "Sign in to the Open Box Ventures LLP Panel";
-const description = "Sign in to the Open Box Ventures LLP employee panel for attendance, leave, payroll, HR, team chat and video meetings.";
+const title = "Open Box Ventures LLP Panel";
+const description = "Attendance, leave, payroll, HR, team chat and video meetings for Open Box Ventures LLP. Sign in on the web, or download the desktop app.";
 
 // The one indexable page: what people find when they search for the panel.
 export const metadata: Metadata = {
@@ -28,9 +29,9 @@ const jsonLd = JSON.stringify({
 
 export default function Page() {
   return (
-    <AuthFrame>
+    <AuthFrame title="Open the panel" hint="Continue in your browser, or download the desktop app.">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
-      <SignIn appearance={authAppearance} />
+      <HomeChoice signIn={<SignIn appearance={authAppearance} />} />
     </AuthFrame>
   );
 }
