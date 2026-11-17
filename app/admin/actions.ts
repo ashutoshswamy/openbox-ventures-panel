@@ -243,9 +243,9 @@ export async function sendCompletionLink(id: string): Promise<{ error?: string }
   if (!emp?.active || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return { error: "Not allowed" };
   if (!(await missing(id))) return { error: "Details and bank account are already filled in" };
   const url = `${SITE_URL}/complete`;
-  const emailed = await mail(emp.email, "Complete your details at Open Box Ventures",
+  const mailErr = await mail(emp.email, "Complete your details at Open Box Ventures",
     `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL));
-  return emailed ? {} : { error: "Email failed. Check RESEND_API_KEY and MAIL_FROM, or try again." };
+  return mailErr ? { error: mailErr } : {};
 }
 
 // ── Document vault ──

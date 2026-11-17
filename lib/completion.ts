@@ -13,15 +13,18 @@ export async function missing(employeeId: string) {
   return p && b ? null : { profile: !p, bank: !b };
 }
 
-// Optional email via Resend (RESEND_API_KEY + MAIL_FROM). false = not configured or failed.
-export async function mail(to: string, subject: string, text: string, html?: string) {
+// Email via Resend (RESEND_API_KEY + MAIL_FROM). Returns null on success, else the reason.
+export async function mail(to: string, subject: string, text: string, html?: string): Promise<string | null> {
   const { RESEND_API_KEY: key, MAIL_FROM: from } = process.env;
-  if (!key || !from) return false;
+  if (!key || !from) return "Email isn't set up: add RESEND_API_KEY and MAIL_FROM, then restart the server";
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ from, to, subject, text, html }),
   }).catch(() => null);
-  return !!res?.ok;
+  if (!res) return "Couldn't reach Resend";
+  if (res.ok) return null;
+  const body = await res.json().catch(() => null);
+  return `Resend: ${body?.message ?? res.status}`;
 }
 
 const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
