@@ -16,7 +16,7 @@ const RELEASE = "https://github.com/ashutoshswamy/openbox-ventures-panel/release
 const DOWNLOADS = [
   {
     platform: "macOS",
-    note: "11 or later · unsigned, right-click → Open on first launch",
+    note: "11 or later · unsigned app, see note below",
     Logo: AppleLogo,
     variants: [
       { label: "Apple Silicon", href: `${RELEASE}/Open.Box.Ventures.LLP.Panel-1.0.0-arm64.dmg` },
@@ -34,7 +34,7 @@ const DOWNLOADS = [
   },
   {
     platform: "Windows",
-    note: "64-bit, Windows 10+",
+    note: "64-bit, Windows 10+ · unsigned app, see note below",
     Logo: WindowsLogo,
     variants: [{ label: "Download", href: `${RELEASE}/Open.Box.Ventures.LLP.Panel.Setup.1.0.0.exe` }],
   },
@@ -98,6 +98,15 @@ export function HomeChoice({ signIn }: { signIn: React.ReactNode }) {
             </div>
           ))}
           <p className="text-xs text-muted">Same account, same data. Sign in once the app opens.</p>
+
+          <div className="card space-y-2 text-xs text-muted">
+            <p className="font-medium text-text">App is unsigned — one-time step to open it</p>
+            <p><span className="font-medium text-text">macOS:</span> right-click the app → Open → confirm in the dialog. If that doesn&apos;t work, run in Terminal:</p>
+            <code className="block overflow-x-auto rounded bg-surface-2 px-2 py-1.5 font-mono text-[11px] text-text">
+              xattr -d com.apple.quarantine &quot;/Applications/Open Box Ventures LLP Panel.app&quot;
+            </code>
+            <p><span className="font-medium text-text">Windows:</span> on &quot;Windows protected your PC&quot;, click More info → Run anyway.</p>
+          </div>
         </div>
       )}
     </div>
