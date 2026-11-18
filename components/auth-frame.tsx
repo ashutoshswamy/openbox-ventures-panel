@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import { Velaris } from "./velaris";
@@ -23,6 +26,12 @@ export const authAppearance = {
 };
 
 export function AuthFrame({ children, title = "Sign in", hint = "Use your work account to open the panel." }: { children: React.ReactNode; title?: string; hint?: string }) {
+  // desktop shell (main.js) uses Electron's default user agent, which always includes "Electron"
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
+  useEffect(() => {
+    setIsDesktopApp(navigator.userAgent.includes("Electron"));
+  }, []);
+
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.15fr_1fr]">
       <Velaris className="hidden text-white lg:block">
@@ -52,7 +61,7 @@ export function AuthFrame({ children, title = "Sign in", hint = "Use your work a
             <span className="font-semibold tracking-tight">Open Box Ventures LLP</span>
           </div>
           <h1 className="text-3xl font-semibold tracking-[-0.03em] text-text">{title}</h1>
-          <p className="mt-2 mb-8 text-sm text-muted">{hint}</p>
+          <p className="mt-2 mb-8 text-sm text-muted">{isDesktopApp ? "Use your work account to open the panel." : hint}</p>
           {children}
         </div>
       </section>
