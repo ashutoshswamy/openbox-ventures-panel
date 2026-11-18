@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/me";
 import { db } from "@/lib/supabase";
-import { str, todayIn } from "@/lib/util";
-import { breakdown, daysIn, workingDays } from "@/lib/payroll";
+import { SITE_URL, str, todayIn } from "@/lib/util";
+import { breakdown, daysIn, payslipEmail, workingDays } from "@/lib/payroll";
+import { mail } from "@/lib/completion";
 
 // Payroll is admin + HR only. Every write is a SQL function that re-checks role, scope and status.
 
@@ -28,7 +30,7 @@ export async function clearSalaries(fd: FormData) {
   const me = await payrollStaff();
   const emp = str(fd, "employee_id");
   if (!emp && me.role !== "admin") return "Only an admin can clear every salary";
-  const { error } = await db().rpc("clear_salaries", { p_emp: emp });
+  const { error } = await db().rpc("clear_salaries", emp ? { p_emp: emp } : {});
   if (error) return error.message;
   done();
 }
@@ -134,8 +136,55 @@ export async function reviewRun(fd: FormData) {
 }
 
 export async function deleteRun(fd: FormData) {
-  await payrollStaff();
+  const me = await payrollStaff();
   const { error } = await db().rpc("delete_payroll_run", { p_id: str(fd, "id") });
   if (error) return error.message;
+  done();
+  redirect(`/${me.role}/payroll`);
+}
+
+type PayslipMail = { id: string; month: string; net: number; employee: { full_name: string; email: string } | null };
+
+async function sendPayslipMail(row: PayslipMail) {
+  if (!row.employee?.email) return "missing email";
+  const link = `${SITE_URL}/payslip/${row.id}`;
+  const content = payslipEmail(row.employee.email, row.employee.full_name, row.month, link, Number(row.net));
+  return mail(content.to, content.subject, content.text, content.html);
+}
+
+export async function sendPayslip(fd: FormData) {
+  await payrollStaff();
+  const { data: row, error } = await db().from("payroll_lines")
+    .select("id, net, employee:employees!inner(full_name, email), run:payroll_runs!inner(month, status)")
+    .eq("id", str(fd, "id") ?? "")
+    .maybeSingle();
+  if (error) return error.message;
+  if (!row) return "Payslip not found";
+  const run = row.run as unknown as { month: string; status: string };
+  if (run.status !== "approved") return "Only approved payslips can be sent";
+  const result = await sendPayslipMail({ id: row.id, month: run.month, net: Number(row.net), employee: row.employee as unknown as PayslipMail["employee"] });
+  if (result) return result === "missing email" ? "This employee has no email address" : result;
+  done();
+}
+
+export async function sendAllPayslips(fd: FormData) {
+  await payrollStaff();
+  const id = str(fd, "id") ?? "";
+  const sb = db();
+  const { data: run, error: runError } = await sb.from("payroll_runs").select("id, month, status").eq("id", id).maybeSingle();
+  if (runError) return runError.message;
+  if (!run) return "Salary sheet not found";
+  if (run.status !== "approved") return "Only approved payslips can be sent";
+  const { data: rows, error } = await sb.from("payroll_lines")
+    .select("id, net, employee:employees!inner(full_name, email)").eq("run_id", id);
+  if (error) return error.message;
+  let sent = 0;
+  let failed = 0;
+  for (const row of rows ?? []) {
+    const result = await sendPayslipMail({ id: row.id, month: run.month, net: Number(row.net), employee: row.employee as unknown as PayslipMail["employee"] });
+    if (result) failed++;
+    else sent++;
+  }
+  if (failed) return `Sent ${sent}; ${failed} payslip${failed === 1 ? "" : "s"} could not be sent`;
   done();
 }

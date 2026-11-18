@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronDown, FilePlus2, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, FilePlus2, FileText, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
@@ -61,7 +61,7 @@ export default async function Payroll() {
                     <td className="font-medium">{monthLabel(r.month)}</td>
                     <td>{(r.office as unknown as { name: string } | null)?.name ?? "All offices"}</td>
                     <td><span className={`badge ${STATUS_TONE[r.status as keyof typeof STATUS_TONE]}`}>{r.status}</span></td>
-                    <td className="text-right"><Link href={`payroll/${r.id}`} className="btn">Open</Link></td>
+                    <td className="text-right"><Link href={`payroll/${r.id}`} className="btn">{r.status === "approved" ? <><FileText /> Payslips</> : "Open"}</Link></td>
                   </tr>
                 ))}
               </tbody>

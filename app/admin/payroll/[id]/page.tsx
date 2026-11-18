@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Check, Download, Pencil, Save, Send, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Download, FileText, Mail, Pencil, Save, Send, Trash2, X } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
 import { PageHeader } from "@/components/shell";
 import { Secret } from "@/components/secret";
-import { deleteRun, reviewRun, submitRun, updateLine } from "../actions";
+import { deleteRun, reviewRun, sendAllPayslips, sendPayslip, submitRun, updateLine } from "../actions";
 
 export const metadata = { title: "Salary sheet" };
 
@@ -44,13 +44,13 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
               <tr>
                 <th>Employee</th><th className="text-right">Basic</th><th className="text-right">HRA</th><th className="text-right">Special</th><th className="text-right">Other allowance</th><th className="text-right">Gross</th>
                 <th className="text-right">PF</th><th className="text-right">ESI</th><th className="text-right">PT</th><th className="text-right">LOP</th>
-                <th className="text-right">TDS</th><th className="text-right">Other deductions</th><th className="text-right">Net</th>{draft && <th />}
+                <th className="text-right">TDS</th><th className="text-right">Other deductions</th><th className="text-right">Net</th>{draft && <th />}{run.status === "approved" && <th className="text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="tabular-nums">
               {rows.map((l) => (
                 <tr key={l.id}>
-                  <td className="font-medium"><Link href={`/payslip/${l.id}`} className="hover:underline" title="Payslip">{l.employee?.full_name}</Link></td>
+                  <td className="font-medium"><Link href={`/payslip/${l.id}`} className="inline-flex items-center gap-1.5 hover:underline" title="Payslip"><FileText className="size-4" />{l.employee?.full_name}</Link></td>
                   {SUMS.map((k) => <td key={k} className={`text-right ${k === "net" ? "font-semibold" : ""}`}>{inr(Number(l[k]))}{k === "lop_amount" && Number(l.lop_days) > 0 ? <span className="block text-xs text-muted">{Number(l.lop_days)} d</span> : null}</td>)}
                   {draft && (
                     <td className="text-right">
@@ -65,6 +65,9 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
                         </ActionForm>
                       </details>
                     </td>
+                  )}
+                  {!draft && run.status === "approved" && (
+                    <td className="text-right"><ActionForm action={sendPayslip} success="Payslip sent"><input type="hidden" name="id" value={l.id} /><button className="btn btn-ghost"><Mail /> Send</button></ActionForm></td>
                   )}
                 </tr>
               ))}
@@ -87,6 +90,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
               <ActionForm action={deleteRun} confirm="Delete this draft sheet?"><input type="hidden" name="id" value={id} /><button className="btn btn-danger"><Trash2 /> Delete draft</button></ActionForm>
             </>
           )}
+          {run.status === "approved" && <ActionForm action={sendAllPayslips} success="All payslips sent"><input type="hidden" name="id" value={id} /><button className="btn btn-primary"><Mail /> Send all payslips</button></ActionForm>}
           {run.status === "submitted" && me.role === "admin" && (
             <ActionForm action={reviewRun} className="flex flex-wrap gap-2">
               <input type="hidden" name="id" value={id} />

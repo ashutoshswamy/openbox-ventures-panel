@@ -90,3 +90,14 @@ export function workingDays(from: string, to: string, workDays: number[], holida
 
 export const STATUS_TONE = { draft: "badge-amber", submitted: "badge-blue", approved: "badge-green" } as const;
 export const monthLabel = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+const esc = (v: string) => v.replace(/[&<>\"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+export function payslipEmail(to: string, name: string, month: string, url: string, net: number) {
+  const firstName = name.split(" ")[0] ?? name;
+  const label = monthLabel(month);
+  const subject = `Your payslip for ${label}`;
+  const text = `Hi ${firstName},\n\nYour payslip for ${label} is ready. Net pay: ${inr(net)}\n\nView your payslip: ${url}\n\nYou may need to sign in to the employee panel to open it.\n\nOpen Box Ventures LLP`;
+  const html = `<!doctype html><html><body style="margin:0;padding:32px 16px;background:#fafafa;font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#18181b"><div style="max-width:480px;margin:auto;padding:32px;background:#fff;border:1px solid #e4e4e7;border-radius:16px"><h1 style="font-size:22px;margin:0 0 16px">Your payslip is ready</h1><p>Hi ${esc(firstName)},</p><p>Your payslip for <strong>${esc(label)}</strong> is ready.</p><p><strong>Net pay: ${esc(inr(net))}</strong></p><p><a href="${esc(url)}" style="display:inline-block;padding:12px 20px;border-radius:10px;background:#18181b;color:#fff;text-decoration:none">View payslip</a></p><p style="font-size:12px;color:#5f5f69">You may need to sign in to the employee panel to open it.</p><p style="font-size:12px;color:#5f5f69">Open Box Ventures LLP</p></div></body></html>`;
+  return { to, subject, text, html };
+}
