@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock, Download, Globe, Monitor } from "lucide-react";
 import { AppleLogo, LinuxLogo, WindowsLogo } from "./platform-icons";
 
@@ -16,7 +16,7 @@ const RELEASE = "https://github.com/ashutoshswamy/openbox-ventures-panel/release
 const DOWNLOADS = [
   {
     platform: "macOS",
-    note: "11 or later",
+    note: "11 or later · unsigned, right-click → Open on first launch",
     Logo: AppleLogo,
     variants: [
       { label: "Apple Silicon", href: `${RELEASE}/Open.Box.Ventures.LLP.Panel-1.0.0-arm64.dmg` },
@@ -42,6 +42,14 @@ const DOWNLOADS = [
 
 export function HomeChoice({ signIn }: { signIn: React.ReactNode }) {
   const [choice, setChoice] = useState<Choice>("web");
+  // desktop shell (main.js) uses Electron's default user agent, which always includes "Electron"
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
+
+  useEffect(() => {
+    setIsDesktopApp(navigator.userAgent.includes("Electron"));
+  }, []);
+
+  if (isDesktopApp) return signIn;
 
   return (
     <div>
