@@ -37,11 +37,14 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
       <div className="space-y-6">
         {draft && run.review_note && <p className="error">Sent back by admin: {run.review_note}</p>}
 
+        <form id="payslip-select" action={`${id}/payslips`} />
+
         <div className="card overflow-x-auto">
           <Secret block label="salary amounts">
           <table className="table">
             <thead>
               <tr>
+                <th />
                 <th>Employee</th><th className="text-right">Basic</th><th className="text-right">HRA</th><th className="text-right">Special</th><th className="text-right">Other allowance</th><th className="text-right">Gross</th>
                 <th className="text-right">PF</th><th className="text-right">ESI</th><th className="text-right">PT</th><th className="text-right">LOP</th>
                 <th className="text-right">TDS</th><th className="text-right">Other deductions</th><th className="text-right">Net</th>{draft && <th />}{run.status === "approved" && <th className="text-right">Actions</th>}
@@ -50,7 +53,8 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
             <tbody className="tabular-nums">
               {rows.map((l) => (
                 <tr key={l.id}>
-                  <td className="font-medium"><Link href={`/payslip/${l.id}`} className="inline-flex items-center gap-1.5 hover:underline" title="Payslip"><FileText className="size-4" />{l.employee?.full_name}</Link></td>
+                  <td><input type="checkbox" name="id" value={l.id} form="payslip-select" aria-label={`Select ${l.employee?.full_name} for payslip generation`} /></td>
+                  <td className="font-medium"><Link href={`/payslip/${l.id}`} className="inline-flex items-center gap-1.5 hover:underline" title="Generate this payslip"><FileText className="size-4" />{l.employee?.full_name}</Link></td>
                   {SUMS.map((k) => <td key={k} className={`text-right ${k === "net" ? "font-semibold" : ""}`}>{inr(Number(l[k]))}{k === "lop_amount" && Number(l.lop_days) > 0 ? <span className="block text-xs text-muted">{Number(l.lop_days)} d</span> : null}</td>)}
                   {draft && (
                     <td className="text-right">
@@ -74,6 +78,7 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
             </tbody>
             <tfoot className="tabular-nums">
               <tr className="font-semibold">
+                <td />
                 <td>Total ({rows.length})</td>
                 {SUMS.map((k) => <td key={k} className="text-right">{inr(total(k))}</td>)}
                 {draft && <td />}
@@ -84,6 +89,8 @@ export default async function Sheet({ params }: PageProps<"/admin/payroll/[id]">
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button type="submit" form="payslip-select" className="btn"><FileText /> Generate selected payslips</button>
+          <Link href={`${id}/payslips`} className="btn"><FileText /> Generate all payslips</Link>
           {draft && (
             <>
               <ActionForm action={submitRun} confirm="Submit this sheet to admin for approval? You can't edit it after."><input type="hidden" name="id" value={id} /><button className="btn btn-primary"><Send /> Submit for approval</button></ActionForm>

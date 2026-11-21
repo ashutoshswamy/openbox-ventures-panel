@@ -44,6 +44,7 @@
 .net p:first-child { display: flex; justify-content: space-between; width: 50%; padding-right: 0; }
 .net strong { font-weight: bold; }
 .footer { margin: 4px 0 0; text-align: center; }
+.pageBreak { break-after: page; }
 @media print {
   .viewport { overflow: visible; }
   .payslip { min-width: 0; width: 100%; padding: 0; font-size: 11pt; break-inside: avoid; }
