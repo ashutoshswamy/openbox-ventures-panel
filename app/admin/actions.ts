@@ -236,16 +236,37 @@ export async function editPersonalDetails(fd: FormData) {
 
 // Admin + HR (own office): ask someone to finish their details / bank account. The link only opens /complete, which needs their own
 // sign-in, so it is safe to share. Emailed via Resend (RESEND_API_KEY + MAIL_FROM).
+async function mailCompletion(emp: { email: string; full_name: string }) {
+  const url = `${SITE_URL}/complete`;
+  return mail(emp.email, "Complete your details at Open Box Ventures",
+    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL));
+}
+
 export async function sendCompletionLink(id: string): Promise<{ error?: string }> {
   const me = await requireStaff();
   if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
   const { data: emp } = await adminDb().from("employees").select("email, full_name, office_id, role, active").eq("id", id).maybeSingle();
   if (!emp?.active || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return { error: "Not allowed" };
   if (!(await missing(id))) return { error: "Details and bank account are already filled in" };
-  const url = `${SITE_URL}/complete`;
-  const mailErr = await mail(emp.email, "Complete your details at Open Box Ventures",
-    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL));
+  const mailErr = await mailCompletion(emp);
   return mailErr ? { error: mailErr } : {};
+}
+
+// Admin: everyone in scope. HR: own office only. Emails every active, non-admin employee still missing details or bank account.
+export async function sendCompletionLinkAll(): Promise<{ error?: string; sent?: number }> {
+  const me = await requireStaff();
+  if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
+  let q = adminDb().from("employees").select("id, email, full_name, office_id, role, active, exit_date").eq("active", true).neq("role", "admin");
+  if (me.role === "hr") q = q.eq("office_id", me.office_id ?? "");
+  const { data: emps } = await q;
+  const today = todayIn();
+  const candidates = (emps ?? []).filter((e) => !e.exit_date || e.exit_date > today);
+  let sent = 0;
+  for (const e of candidates) {
+    if (!(await missing(e.id))) continue;
+    if (!(await mailCompletion(e))) sent++;
+  }
+  return { sent };
 }
 
 // ── Document vault ──

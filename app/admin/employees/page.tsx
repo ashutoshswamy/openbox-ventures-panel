@@ -12,7 +12,7 @@ import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
 import { PersonSelect } from "@/components/person-select";
-import { CompletionLink } from "@/components/completion-link";
+import { CompletionLink, CompletionLinkAll } from "@/components/completion-link";
 import { CATEGORIES, type Doc, DocumentList } from "@/components/documents";
 import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee, uploadDocument } from "../actions";
 
@@ -143,13 +143,14 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const me = await staffPage();
   const isAdmin = me.role === "admin";
   const canEdit = isAdmin || me.role === "hr"; // personal details; HR is limited to their office by the query below
-  const { q, status: st, access: ac, role: rl, page: pg } = await searchParams;
+  const { q, status: st, access: ac, role: rl, details: dt, page: pg } = await searchParams;
   const { page, from, to } = pageOf(pg, SIZE);
   const status = st === "archive" || st === "inactive" ? "archive" : "active"; // archive = exited (exit date reached) or deactivated
   const today = todayIn();
   const access = ac === "invited" || ac === "accepted" ? ac : "all"; // invited = email sent, not signed up yet; accepted = signed up
   const ROLES = ["employee", "manager", "branch_head", "hr", "admin", "none"] as const; // none = signed up, no role assigned yet
   const role = ROLES.find((x) => x === rl) ?? "all";
+  const details = dt === "pending" || dt === "complete" ? dt : "all"; // complete/incomplete personal details + bank account
   const sb = db();
   let query = sb.from("employees").select("*", { count: "exact" }).order("active", { ascending: false }).order("full_name").range(from, to);
   if (!isAdmin) query = query.eq("office_id", me.office_id ?? "");
@@ -160,10 +161,9 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   if (role === "none") query = query.not("clerk_user_id", "is", null).is("role", null);
   else if (role !== "all") query = query.eq("role", role);
   if (q) query = query.ilike("full_name", `%${String(q).replace(/[%,()]/g, "")}%`);
-  let everyoneQ = sb.from("employees").select("id, name:full_name, active, clerk_user_id, exit_date").order("full_name");
+  let everyoneQ = sb.from("employees").select("id, name:full_name, active, clerk_user_id, exit_date, role").order("full_name");
   if (!isAdmin) everyoneQ = everyoneQ.eq("office_id", me.office_id ?? "");
-  const [{ data: emps, count: total }, { data: offices }, { data: depts }, { data: everyone }] = await Promise.all([
-    query,
+  const [{ data: offices }, { data: depts }, { data: everyone }] = await Promise.all([
     sb.from("offices").select("id, name").order("name"),
     sb.from("departments").select("id, name, office_id").order("name"),
     everyoneQ, // all rows in scope, for counts + "Reports to"
@@ -173,8 +173,24 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   const inView = (everyone ?? []).filter((p) => archived(p) === (status === "archive")); // invite counts follow the tab you are on
   const accessCounts = { all: inView.length, invited: inView.filter((p) => !p.clerk_user_id).length, accepted: inView.filter((p) => p.clerk_user_id).length };
   const managers = (everyone ?? []).filter((p) => !archived(p));
+
+  // Details filter: active, non-admin employees still missing (or having finished) their personal details + bank account.
+  const liveNonAdmin = (everyone ?? []).filter((p) => !archived(p) && p.role !== "admin");
+  const [{ data: liveProfiles }, { data: liveBanks }] = canEdit ? await Promise.all([
+    adminDb().from("employee_profiles").select("employee_id").in("employee_id", liveNonAdmin.map((p) => p.id)),
+    sb.from("employee_bank").select("employee_id").in("employee_id", liveNonAdmin.map((p) => p.id)),
+  ]) : [{ data: [] }, { data: [] }];
+  const hasProfile = new Set((liveProfiles ?? []).map((p) => p.employee_id));
+  const hasBankAcc = new Set((liveBanks ?? []).map((b) => b.employee_id));
+  const pendingIds = liveNonAdmin.filter((p) => !hasProfile.has(p.id) || !hasBankAcc.has(p.id)).map((p) => p.id);
+  const completeIds = liveNonAdmin.filter((p) => hasProfile.has(p.id) && hasBankAcc.has(p.id)).map((p) => p.id);
+  const detailsCounts = { all: liveNonAdmin.length, pending: pendingIds.length, complete: completeIds.length };
+  if (details === "pending") query = query.in("id", pendingIds.length ? pendingIds : ["00000000-0000-0000-0000-000000000000"]);
+  else if (details === "complete") query = query.in("id", completeIds.length ? completeIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const { data: emps, count: total } = await query;
   // link that changes one filter and keeps the others (an empty value drops that filter)
-  const keep = (over: Record<string, string>) => `?${new URLSearchParams(Object.entries({ ...(q ? { q: String(q) } : {}), ...(status !== "active" ? { status } : {}), ...(access !== "all" ? { access } : {}), ...(role !== "all" ? { role } : {}), ...over }).filter(([, v]) => v))}`;
+  const keep = (over: Record<string, string>) => `?${new URLSearchParams(Object.entries({ ...(q ? { q: String(q) } : {}), ...(status !== "active" ? { status } : {}), ...(access !== "all" ? { access } : {}), ...(role !== "all" ? { role } : {}), ...(details !== "all" ? { details } : {}), ...over }).filter(([, v]) => v))}`;
 
   // Roles live in Clerk publicMetadata of joined users.
   // ponytail: single page of 500 users; paginate past that.
@@ -243,6 +259,18 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                 </Link>
               ))}
             </nav>
+            {canEdit && (
+              <nav aria-label="Filter by details" className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
+                {([["all", "All"], ["pending", "Pending"], ["complete", "Complete"]] as const).map(([k, label]) => (
+                  <Link key={k} href={keep({ details: k === "all" ? "" : k })} aria-current={details === k ? "page" : undefined}
+                    title={k === "pending" ? "Still missing personal details or bank account" : k === "complete" ? "Personal details and bank account filled in" : undefined}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-colors ${details === k ? "bg-surface font-medium text-text shadow-[0_1px_2px_rgb(24_24_27/0.08)]" : "text-muted hover:text-text"}`}>
+                    {label} <span className="text-xs tabular-nums opacity-70">{detailsCounts[k]}</span>
+                  </Link>
+                ))}
+              </nav>
+            )}
+            {canEdit && <CompletionLinkAll count={detailsCounts.pending} />}
             <AutoForm className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {status !== "active" && <input type="hidden" name="status" value={status} />}
               {access !== "all" && <input type="hidden" name="access" value={access} />}
