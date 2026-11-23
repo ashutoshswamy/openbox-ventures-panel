@@ -39,7 +39,7 @@ export async function GET(req: Request) {
     return [
       e.employee_code ?? "", e.full_name, e.joined_on ?? "", p?.gender ?? "", nice(p?.date_of_birth, true), email, "", "",
       age === null ? "" : bucket(age, [20, 25, 30, 35]), m?.employee_code ?? "", m?.full_name ?? "", p?.phone ?? "",
-      p?.blood_group?.replace(/([+-])$/, (s) => ` ${s === "+" ? "+ve" : "-ve"}`) ?? "", "Active", b?.pan ?? "", b?.uan ?? "",
+      p?.blood_group?.replace(/([+-])$/, (s: string) => ` ${s === "+" ? "+ve" : "-ve"}`) ?? "", "Active", b?.pan ?? "", b?.uan ?? "",
       yrs === null ? "" : yrs.toFixed(2), yrs === null ? "" : bucket(yrs, [0, 2, 5, 10]),
     ];
   });
