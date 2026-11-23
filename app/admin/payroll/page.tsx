@@ -6,6 +6,7 @@ import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
 import { inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
+import { CompletionLink } from "@/components/completion-link";
 import { type Bank, BankForm, BankLock, BankUnlock, maskAcct } from "@/components/bank-form";
 import { Secret } from "@/components/secret";
 import { bankUnlocked } from "@/lib/bank-unlock";
@@ -130,6 +131,7 @@ export default async function Payroll() {
                           )}
                         </div>
                         <div className="space-y-4">
+                          {!bank && <CompletionLink id={p.id} missing="bank details" />}
                           {bank && (bank.employee_can_edit ? (
                             <p className="text-sm text-muted"><LockOpen className="mr-1 inline size-3.5" />Unlocked: {p.full_name.split(" ")[0]} can change their bank details once.</p>
                           ) : (

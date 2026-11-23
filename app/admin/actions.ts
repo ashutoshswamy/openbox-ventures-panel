@@ -236,10 +236,11 @@ export async function editPersonalDetails(fd: FormData) {
 
 // Admin + HR (own office): ask someone to finish their details / bank account. The link only opens /complete, which needs their own
 // sign-in, so it is safe to share. Emailed via Resend (RESEND_API_KEY + MAIL_FROM).
-async function mailCompletion(emp: { email: string; full_name: string }) {
+async function mailCompletion(emp: { email: string; full_name: string }, need: { profile: boolean; bank: boolean }) {
+  const items = [need.profile && "personal details", need.bank && "bank details"].filter(Boolean).join(" and ");
   const url = `${SITE_URL}/complete`;
   return mail(emp.email, "Complete your details at Open Box Ventures",
-    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining details here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL));
+    `Hi ${emp.full_name.split(" ")[0]},\n\nPlease sign in and fill in your remaining ${items} here:\n${url}\n\nOpen Box Ventures LLP`, completionEmail(emp.full_name.split(" ")[0], url, SITE_URL, items));
 }
 
 export async function sendCompletionLink(id: string): Promise<{ error?: string }> {
@@ -247,8 +248,9 @@ export async function sendCompletionLink(id: string): Promise<{ error?: string }
   if (me.role !== "admin" && me.role !== "hr") return { error: "Not allowed" };
   const { data: emp } = await adminDb().from("employees").select("email, full_name, office_id, role, active").eq("id", id).maybeSingle();
   if (!emp?.active || emp.role === "admin" || (me.role === "hr" && emp.office_id !== me.office_id)) return { error: "Not allowed" };
-  if (!(await missing(id))) return { error: "Details and bank account are already filled in" };
-  const mailErr = await mailCompletion(emp);
+  const need = await missing(id);
+  if (!need) return { error: "Details and bank account are already filled in" };
+  const mailErr = await mailCompletion(emp, need);
   return mailErr ? { error: mailErr } : {};
 }
 
@@ -263,8 +265,8 @@ export async function sendCompletionLinkAll(): Promise<{ error?: string; sent?: 
   const candidates = (emps ?? []).filter((e) => !e.exit_date || e.exit_date > today);
   let sent = 0;
   for (const e of candidates) {
-    if (!(await missing(e.id))) continue;
-    if (!(await mailCompletion(e))) sent++;
+    const need = await missing(e.id);
+    if (need && !(await mailCompletion(e, need))) sent++;
   }
   return { sent };
 }
@@ -277,7 +279,7 @@ const DOC_TYPES: Record<string, string> = {
   pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", heic: "image/heic",
   doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
-const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other"];
+const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other", "aadhaar", "pan"];
 
 // scope.me set = may manage this person's documents
 async function docScope(employeeId: string | null) {
@@ -292,9 +294,10 @@ export async function uploadDocument(fd: FormData) {
   const id = str(fd, "employee_id");
   const scope = await docScope(id);
   if (!scope.me) return scope.error;
-  const title = str(fd, "title"), category = str(fd, "category"), file = fd.get("file");
-  if (!title || title.length > 200) return "Give the document a title (up to 200 characters)";
+  const category = str(fd, "category"), file = fd.get("file");
   if (!category || !DOC_CATEGORIES.includes(category)) return "Pick a category";
+  const title = str(fd, "title") ?? (category === "aadhaar" ? "Aadhaar card" : category === "pan" ? "PAN card" : null); // fixed parts need no title
+  if (!title || title.length > 200) return "Give the document a title (up to 200 characters)";
   if (!(file instanceof File) || !file.size) return "Choose a file";
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (!Object.hasOwn(DOC_TYPES, ext)) return "Use a PDF, image or Word file";

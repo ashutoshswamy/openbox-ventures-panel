@@ -3,7 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
-import { Archive, Ban, ChevronDown, ClipboardList, FolderLock, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, Upload, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
+import { Archive, Ban, ChevronDown, Download, ClipboardList, FolderLock, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, Upload, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { PhoneInput } from "@/components/phone-input";
 import { Avatar } from "@/components/avatar";
@@ -96,7 +96,7 @@ function Details({ e, p }: { e: Emp; p?: Profile }) {
     <ActionForm action={editPersonalDetails} keep success="Saved" className="company grid gap-4 sm:grid-cols-2">
       <input type="hidden" name="id" value={e.id} />
       <label className="field">Full name<input name="full_name" required defaultValue={e.full_name} className="input" /></label>
-      <label className="field">Alias name<input name="alias_name" maxLength={60} defaultValue={e.alias_name ?? ""} className="input" /></label>
+      <label className="alias field">Alias name<input name="alias_name" maxLength={60} defaultValue={e.alias_name ?? ""} className="input" /></label>
       <label className="field">Date of birth<input type="date" name="date_of_birth" required defaultValue={p.date_of_birth} className="input" /></label>
       <label className="field">Gender
         <select name="gender" defaultValue={p.gender ?? ""} className="input">
@@ -271,6 +271,7 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
               </nav>
             )}
             {canEdit && <CompletionLinkAll count={detailsCounts.pending} />}
+            {canEdit && <a href="/admin/employees/export" className="btn"><Download /> Export employees</a>}
             <AutoForm className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {status !== "active" && <input type="hidden" name="status" value={status} />}
               {access !== "all" && <input type="hidden" name="access" value={access} />}
@@ -344,17 +345,24 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                       {(isAdmin || e.id !== me.id) && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="h2"><FolderLock /> Documents</h3>
-                          <DocumentList docs={docsOf(e.id)} canDelete />
-                          <ActionForm action={uploadDocument} className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-2">
-                            <input type="hidden" name="employee_id" value={e.id} />
-                            <label className="field">Title<input name="title" required maxLength={200} placeholder="e.g. Offer letter 2026" className="input" /></label>
-                            <label className="field">Category
-                              <select name="category" required className="input">{CATEGORIES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-                            </label>
-                            <label className="field">File (PDF, image or Word, up to 4 MB)<input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx" className="input" /></label>
-                            <label className="field">Expires on (optional)<input type="date" name="expires_on" className="input" /></label>
-                            <div className="sm:col-span-2"><button className="btn btn-primary"><Upload /> Upload</button></div>
-                          </ActionForm>
+                          {([["aadhaar", "Aadhaar card"], ["pan", "PAN card"], ["other", "Other documents"]] as const).map(([cat, label]) => (
+                            <div key={cat} className="mt-4 border-t border-line pt-4 first:mt-0 first:border-0 first:pt-0">
+                              <h4 className="mb-2 font-medium">{label}</h4>
+                              <DocumentList docs={docsOf(e.id).filter((d) => cat === "other" ? d.category !== "aadhaar" && d.category !== "pan" : d.category === cat)} canDelete />
+                              <ActionForm action={uploadDocument} className="mt-3 grid gap-3 sm:grid-cols-2">
+                                <input type="hidden" name="employee_id" value={e.id} />
+                                {cat === "other" ? <>
+                                  <label className="field">Title<input name="title" required maxLength={200} placeholder="e.g. Offer letter 2026" className="input" /></label>
+                                  <label className="field">Category
+                                    <select name="category" required defaultValue="other" className="input">{CATEGORIES.filter(([k]) => k !== "aadhaar" && k !== "pan").map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                                  </label>
+                                </> : <input type="hidden" name="category" value={cat} />}
+                                <label className="field">File (PDF, image or Word, up to 4 MB)<input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx" className="input" /></label>
+                                {cat === "other" && <label className="field">Expires on (optional)<input type="date" name="expires_on" className="input" /></label>}
+                                <div className="sm:col-span-2"><button className="btn btn-primary"><Upload /> Upload</button></div>
+                              </ActionForm>
+                            </div>
+                          ))}
                         </section>
                       )}
                       {isAdmin && <>

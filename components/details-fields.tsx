@@ -31,7 +31,7 @@ export function DetailsFields({ fullName, alias, p, profile = true, bank = false
       {profile && <>
         <Section title="Personal" hint="As on your official ID.">
           <label className="field sm:col-span-2">Full name {req}<input name="full_name" required autoComplete="name" defaultValue={fullName} className={input} /></label>
-          <label className="field sm:col-span-2">Alias name<input name="alias_name" maxLength={60} defaultValue={alias ?? ""} placeholder="The name you go by at work, if different" className={input} /></label>
+          <label className="alias field sm:col-span-2">Alias name<input name="alias_name" maxLength={60} defaultValue={alias ?? ""} placeholder="The name you go by at work, if different" className={input} /></label>
           <label className="field">Date of birth {req}<input type="date" name="date_of_birth" required autoComplete="bday" defaultValue={p?.date_of_birth ?? ""} className={input} /></label>
           <label className="field">Gender
             <select name="gender" defaultValue={p?.gender ?? ""} className={input}>

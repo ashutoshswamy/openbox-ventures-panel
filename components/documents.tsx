@@ -6,7 +6,7 @@ import { fmtDate, todayIn } from "@/lib/util";
 
 export const CATEGORIES: [string, string][] = [
   ["offer_letter", "Offer letter"], ["contract", "Contract"], ["id_proof", "ID proof"], ["address_proof", "Address proof"],
-  ["certificate", "Certificate"], ["tax", "Tax"], ["other", "Other"],
+  ["certificate", "Certificate"], ["tax", "Tax"], ["other", "Other"], ["aadhaar", "Aadhaar card"], ["pan", "PAN card"],
 ];
 export type Doc = { id: string; category: string; title: string; expires_on: string | null; created_at: string };
 

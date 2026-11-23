@@ -46,7 +46,7 @@ export function parseProfile(fd: FormData): string | { name: string; alias: stri
   const company = str(fd, "company");
   if (!company || !["lgoob", "fusion", "both", "entertainment"].includes(company)) return "Pick which company they work with";
   const companyFields: Record<string, string | null> = { lgoob_alias: null, lgoob_email: null, fusion_alias: null, fusion_email: null };
-  for (const [key, name, on] of [["lgoob", "LGOOB", company !== "fusion"], ["fusion", "Fusion Freights", company !== "lgoob"]] as const) {
+  for (const [key, name, on] of [["lgoob", "LGOOB", company !== "fusion" && company !== "entertainment"], ["fusion", "Fusion Freights", company !== "lgoob" && company !== "entertainment"]] as const) {
     if (!on) continue;
     const a = str(fd, `${key}_alias`), e = str(fd, `${key}_email`);
     if (!a || !e) return `Enter the ${name} alias name and email`;
@@ -59,7 +59,7 @@ export function parseProfile(fd: FormData): string | { name: string; alias: stri
   const current = tidyAddress(str(fd, "current_address"))!;
   return {
     name: tidyName(str(fd, "full_name"))!,
-    alias: tidyName(alias),
+    alias: company === "entertainment" ? null : tidyName(alias), // entertainment: just name + email
     profile: {
       date_of_birth: str(fd, "date_of_birth"),
       gender: str(fd, "gender"),
