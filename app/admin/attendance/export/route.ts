@@ -4,7 +4,7 @@ import { eachDay, isoDow, monthRange, validDay, validMonth } from "@/lib/calenda
 import { todayIn } from "@/lib/util";
 
 // ?day=… | ?month=… | ?from=…&to=… (+ optional office, employee). Downloads an Attendance Muster:
-// one row per person, one column per day (P / WFH / A / H / OFF / leave codes), and totals. &format=csv, else Excel.
+// one row per person, one column per day (P / WFH / A / H / OFF / leave codes), and totals. CSV.
 function span(sp: URLSearchParams, today: string) {
   const d = validDay(sp.get("day"), "");
   if (d) return { from: d, to: d };
@@ -15,15 +15,10 @@ function span(sp: URLSearchParams, today: string) {
   return monthRange(today.slice(0, 7));
 }
 
-const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const str = (v: unknown, s = "Cell") => `<Cell ss:StyleID="${s}"><Data ss:Type="String">${esc(v)}</Data></Cell>`;
-const num = (v: number) => `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${v}</Data></Cell>`;
 const MON = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const nice = (d: string) => `${Number(d.slice(8))}-${MON[Number(d.slice(5, 7)) - 1].slice(0, 3)}-${d.slice(0, 4)}`;
 // "Casual Leave" → CL, "Sick" → SIC
 const codeOf = (name: string) => { const w = name.trim().split(/\s+/).filter(Boolean); return (w.length > 1 ? w.map((x) => x[0]).join("").slice(0, 3) : name.slice(0, 3)).toUpperCase(); };
-const border = `<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFBFBF"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#BFBFBF"/></Borders>`;
-const box = `<Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>`;
 
 // RLS scopes rows: managers only get their office / department.
 export async function GET(req: Request) {
@@ -92,53 +87,13 @@ export async function GET(req: Request) {
   });
 
   const monthly = days.length > 1 && from.endsWith("-01") && to === monthRange(from.slice(0, 7)).to;
-  const label = monthly ? `${MON[Number(from.slice(5, 7)) - 1]} ${from.slice(0, 4)}` : from === to ? nice(from) : `${nice(from)} to ${nice(to)}`;
   const file = monthly ? `${MON[Number(from.slice(5, 7)) - 1]}-${from.slice(0, 4)}` : from === to ? nice(from) : `${nice(from)}_to_${nice(to)}`;
 
   const TOT = ["Present", "Leave", "Holiday", "Absent", "Off Day", "Rest Day", "On duty", "Status unknown", "Total"];
-  const width = 4 + days.length + TOT.length;
-  const widths = [150, 80, 130, 120, ...days.map(() => 34), ...TOT.map(() => 56)];
-  const legend: [string, string][] = [["P", "Present"], ["WFH", "Work from home"], ["A", "Absent"], ["H", "Holiday"], ["OFF", "Off day"], ...[...codes], ["P:xx / xx:A", "Half-day leave (present or absent for the other half)"]];
-
-  if (sp.get("format") === "csv") {
-    const cell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; }; // quote; block formula injection
-    const csv = [
-      ["Employee Name", "Employee No", "Designation", "Location", ...days.map((d) => Number(d.slice(8))), ...TOT],
-      ...body.map(({ p, o, cells, t }) => [p.full_name, p.employee_code ?? "", p.designation ?? "", o?.name ?? "", ...cells, t.P, t.L, t.H, t.A, t.OFF, 0, 0, 0, t.total]),
-    ].map((r) => r.map(cell).join(",")).join("\n");
-    return new Response(csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="Attendance_Muster__${file}.csv"` } });
-  }
-
-  const xml = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>
-<Style ss:ID="Default" ss:Name="Normal"><Font ss:FontName="Arial" ss:Size="10"/></Style>
-<Style ss:ID="Title"><Font ss:FontName="Arial" ss:Size="12" ss:Bold="1"/></Style>
-<Style ss:ID="Head"><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>${box}</Style>
-<Style ss:ID="Cell"><Alignment ss:Horizontal="Center"/>${border}</Style>
-<Style ss:ID="Left"><Alignment ss:Horizontal="Left"/>${border}</Style>
-<Style ss:ID="Off"><Font ss:FontName="Arial" ss:Size="10" ss:Color="#7F7F7F"/><Alignment ss:Horizontal="Center"/>${border}</Style>
-<Style ss:ID="Bold"><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/></Style>
-</Styles>
-<Worksheet ss:Name="Attendance Muster">
-<Table>
-${widths.map((w) => `<Column ss:AutoFitWidth="0" ss:Width="${w}"/>`).join("")}
-<Row ss:Height="20"><Cell ss:StyleID="Title" ss:MergeAcross="${width - 1}"><Data ss:Type="String">${esc(`Attendance Muster - ${label}`)}</Data></Cell></Row>
-<Row>${["Employee Name", "Employee No", "Designation", "Location"].map((h) => `<Cell ss:StyleID="Head" ss:MergeDown="1"><Data ss:Type="String">${h}</Data></Cell>`).join("")}${days.map(() => str("", "Head")).join("")}<Cell ss:StyleID="Head" ss:MergeAcross="${TOT.length - 1}"><Data ss:Type="String">Total Days</Data></Cell></Row>
-<Row>${days.map((d, i) => `<Cell ss:StyleID="Head"${i === 0 ? ` ss:Index="5"` : ""}><Data ss:Type="Number">${Number(d.slice(8))}</Data></Cell>`).join("")}${TOT.map((h) => str(h, "Head")).join("")}</Row>
-${body.map(({ p, o, cells, t }) => `<Row>${str(p.full_name, "Left")}${str(p.employee_code ?? "", "Left")}${str(p.designation ?? "", "Left")}${str(o?.name ?? "", "Left")}${cells.map((c) => str(c, c === "OFF" || c === "H" ? "Off" : "Cell")).join("")}${[t.P, t.L, t.H, t.A, t.OFF, 0, 0, 0, t.total].map(num).join("")}</Row>`).join("\n")}
-<Row/>
-<Row>${str("Legend", "Bold")}</Row>
-${legend.map(([c, n]) => `<Row>${str(c, "Bold")}${str(n, "Left")}</Row>`).join("\n")}
-</Table>
-</Worksheet>
-</Workbook>`;
-
-  return new Response(xml, {
-    headers: {
-      "content-type": "application/vnd.ms-excel",
-      "content-disposition": `attachment; filename="Attendance_Muster__${file}.xls"`,
-    },
-  });
+  const cell = (v: unknown) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; }; // quote; block formula injection
+  const csv = [
+    ["Employee Name", "Employee No", "Designation", "Location", ...days.map((d) => Number(d.slice(8))), ...TOT],
+    ...body.map(({ p, o, cells, t }) => [p.full_name, p.employee_code ?? "", p.designation ?? "", o?.name ?? "", ...cells, t.P, t.L, t.H, t.A, t.OFF, 0, 0, 0, t.total]),
+  ].map((r) => r.map(cell).join(",")).join("\n");
+  return new Response("\uFEFF" + csv, { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="Attendance_Muster__${file}.csv"` } });
 }
