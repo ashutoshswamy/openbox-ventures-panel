@@ -1,9 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { rateLimit, requireMe } from "@/lib/me";
-import { checkPassword } from "@/lib/reauth";
-import { clearBankUnlock, setBankUnlock } from "@/lib/bank-unlock";
+import { requireMe } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { str } from "@/lib/util";
 
@@ -40,20 +38,5 @@ export async function allowBankEdit(fd: FormData) {
   await requireMe();
   const { error } = await db().rpc("allow_bank_edit", { p_emp: str(fd, "employee_id") });
   if (error) return error.message;
-  revalidatePath("/", "layout");
-}
-
-// Re-enter the account password to see bank details for 10 minutes.
-export async function unlockBank(fd: FormData) {
-  const me = await requireMe();
-  await rateLimit(`bank-pw:${me.id}`, 5, 300); // ponytail: 5 tries / 5 min on top of Clerk's own lockout
-  const err = await checkPassword(String(fd.get("password") ?? ""));
-  if (err) return err;
-  await setBankUnlock(me.id);
-  revalidatePath("/", "layout");
-}
-
-export async function lockBank() {
-  await clearBankUnlock();
   revalidatePath("/", "layout");
 }

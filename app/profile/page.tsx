@@ -11,9 +11,8 @@ import { ActionForm } from "@/components/action-form";
 import { db } from "@/lib/supabase";
 import { SalaryBreakdown } from "@/components/salary-breakdown";
 import { LiveRefresh } from "@/components/live-refresh";
-import { type Bank, BankForm, BankLock, BankUnlock } from "@/components/bank-form";
+import { type Bank, BankForm } from "@/components/bank-form";
 import { Secret } from "@/components/secret";
-import { bankUnlocked } from "@/lib/bank-unlock";
 import { breakdown, daysIn, inr } from "@/lib/payroll";
 import { fmtDate, todayIn } from "@/lib/util";
 import { saveProfile } from "./actions";
@@ -27,14 +26,13 @@ export default async function Profile() {
   if (!me) redirect("/no-access");
   if (me.role === "admin") redirect("/admin");
   const onboarding = !me.onboarded;
-  // own salary + bank (RLS: own rows only). Bank values only after password re-entry.
+  // own salary + bank (RLS: own rows only).
   const today = todayIn();
-  const unlocked = !onboarding && await bankUnlocked(me.id); // cookie check, no network
   const none = { data: null };
   const [{ data: p }, { data: sal }, { data: bank }] = await Promise.all([
     adminDb().from("employee_profiles").select("*").eq("employee_id", me.id).maybeSingle(),
     onboarding ? none : db().from("employee_salaries").select("annual_ctc, effective_from").lte("effective_from", today).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
-    onboarding ? none : db().from("employee_bank").select<string, Bank>(unlocked ? "*" : "employee_can_edit, edit_requested_at").maybeSingle(),
+    onboarding ? none : db().from("employee_bank").select<string, Bank>("*").maybeSingle(),
   ]);
   const pay = sal ? breakdown(Number(sal.annual_ctc), { month: Number(today.slice(5, 7)), daysInMonth: daysIn(Number(today.slice(0, 4)), Number(today.slice(5, 7))) }) : null;
 
@@ -102,7 +100,7 @@ export default async function Profile() {
                 <h2 className="mb-3 text-[15px] font-semibold tracking-tight">Bank details</h2>
                 {!bank ? <BankForm /> : (
                   <div className="space-y-4">
-                    {!unlocked ? <BankUnlock /> : bank.employee_can_edit ? (
+                    {bank.employee_can_edit ? (
                       <>
                         <p className="rounded-xl bg-amber-soft p-3 text-sm text-amber">Editing is unlocked. Once you click save, your details lock again and you&apos;ll need to request access again for further changes.</p>
                         <BankForm bank={bank} />
@@ -114,7 +112,6 @@ export default async function Profile() {
                         ))}
                       </dl>
                     )}
-                    {unlocked && <BankLock />}
                     {!bank.employee_can_edit && (bank.edit_requested_at ? (
                       <p className="flex items-center gap-2 text-sm text-muted"><Clock className="size-4" /> Edit requested {fmtDate(bank.edit_requested_at.slice(0, 10))}. Waiting for HR or an admin to allow it.</p>
                     ) : (

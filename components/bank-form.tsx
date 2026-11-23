@@ -1,8 +1,7 @@
-import { EyeOff, KeyRound, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
-import { lockBank, saveBank, unlockBank } from "@/app/profile/bank-actions";
+import { saveBank } from "@/app/profile/bank-actions";
 
-// Locked (no password yet) reads only the status columns; the rest are absent then.
 export type Bank = { holder_name: string; account_number: string; ifsc: string; bank_name: string; pan: string | null; uan: string | null; aadhaar: string | null; employee_can_edit: boolean; edit_requested_at: string | null };
 
 export const maskAcct = (a: string) => "•••• " + a.slice(-4);
@@ -20,26 +19,6 @@ export function BankForm({ bank, employeeId }: { bank?: Bank | null; employeeId?
       <label className="field">Aadhaar number<input name="aadhaar" inputMode="numeric" pattern="[0-9]{12}" maxLength={12} placeholder="12 digits" defaultValue={bank?.aadhaar ?? ""} className="input" /></label>
       <label className="field">UAN (optional)<input name="uan" inputMode="numeric" pattern="[0-9]{12}" defaultValue={bank?.uan ?? ""} className="input" /></label>
       <div className="sm:col-span-2"><button className="btn btn-primary"><Save /> Save bank details</button></div>
-    </ActionForm>
-  );
-}
-
-// Password prompt shown instead of bank details until bankUnlocked().
-export function BankUnlock() {
-  return (
-    <ActionForm action={unlockBank} className="flex flex-wrap items-end gap-2">
-      <label className="field min-w-56 flex-1">Enter your account password to view bank details
-        <input type="password" name="password" required autoComplete="current-password" className="input" />
-      </label>
-      <button className="btn btn-primary"><KeyRound /> View</button>
-    </ActionForm>
-  );
-}
-
-export function BankLock() {
-  return (
-    <ActionForm action={lockBank}>
-      <button className="btn btn-ghost"><EyeOff /> Hide bank details</button>
     </ActionForm>
   );
 }

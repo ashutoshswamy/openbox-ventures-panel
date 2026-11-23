@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-// Re-enter-password gates (bank details, other people's DMs).
+// Re-enter-password gates (other people's DMs).
 // Proof = httpOnly cookie "<employee id>.<expiry>.<hmac>", signed with the Clerk secret (server-only).
 export function unlocker(name: string, ttlS = 10 * 60) {
   const sign = (v: string) => createHmac("sha256", process.env.CLERK_SECRET_KEY!).update(`${name}:${v}`).digest("base64url");
