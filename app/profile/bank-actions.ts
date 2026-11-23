@@ -19,10 +19,11 @@ export async function saveBank(fd: FormData) {
     p_bank: str(fd, "bank_name"),
     p_pan: str(fd, "pan"),
     p_uan: str(fd, "uan"),
+    p_aadhaar: str(fd, "aadhaar"),
   });
   if (error) {
     const c = error.message.match(/employee_bank_(\w+)_check/)?.[1];
-    return c ? `Invalid ${{ ifsc: "IFSC", pan: "PAN", uan: "UAN", account_number: "account number" }[c] ?? c}` : error.message;
+    return c ? `Invalid ${{ ifsc: "IFSC", pan: "PAN", uan: "UAN", aadhaar: "Aadhaar", account_number: "account number" }[c] ?? c}` : error.message;
   }
   revalidatePath("/", "layout");
 }

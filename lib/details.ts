@@ -8,13 +8,14 @@ export type Parsed = Exclude<ReturnType<typeof parseProfile>, string>;
 // Bank fields of the onboarding form → employee_bank row, or an error string.
 export function parseBank(fd: FormData, employee_id: string) {
   const f = (k: string) => str(fd, k) ?? "";
-  const [holder, bankName, account, ifsc, pan, uan] = [tidyName(f("holder_name"))!, tidyOrg(f("bank_name"))!, f("account_number").replace(/[\s-]/g, ""), f("ifsc").replace(/\s/g, "").toUpperCase(), f("pan").replace(/\s/g, "").toUpperCase(), f("uan").replace(/[\s-]/g, "")];
+  const [holder, bankName, account, ifsc, pan, uan, aadhaar] = [tidyName(f("holder_name"))!, tidyOrg(f("bank_name"))!, f("account_number").replace(/[\s-]/g, ""), f("ifsc").replace(/\s/g, "").toUpperCase(), f("pan").replace(/\s/g, "").toUpperCase(), f("uan").replace(/[\s-]/g, ""), f("aadhaar").replace(/[\s-]/g, "")];
   if (!holder || !bankName || !account || !ifsc) return "Bank details are required";
   if (!/^[0-9]{6,20}$/.test(account)) return "Invalid account number";
   if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return "Invalid IFSC";
   if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return "Invalid PAN";
   if (uan && !/^[0-9]{12}$/.test(uan)) return "Invalid UAN";
-  return { employee_id, holder_name: holder, bank_name: bankName, account_number: account, ifsc, pan: pan || null, uan: uan || null };
+  if (aadhaar && !/^[0-9]{12}$/.test(aadhaar)) return "Invalid Aadhaar number";
+  return { employee_id, holder_name: holder, bank_name: bankName, account_number: account, ifsc, pan: pan || null, uan: uan || null, aadhaar: aadhaar || null };
 }
 
 // Server key: callers have already decided who may write this employee's details.

@@ -279,7 +279,7 @@ const DOC_TYPES: Record<string, string> = {
   pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", heic: "image/heic",
   doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
-const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other", "aadhaar"];
+const DOC_CATEGORIES = ["offer_letter", "contract", "id_proof", "address_proof", "certificate", "tax", "other", "aadhaar", "pan"];
 
 // scope.me set = may manage this person's documents
 async function docScope(employeeId: string | null) {
@@ -296,7 +296,7 @@ export async function uploadDocument(fd: FormData) {
   if (!scope.me) return scope.error;
   const category = str(fd, "category"), file = fd.get("file");
   if (!category || !DOC_CATEGORIES.includes(category)) return "Pick a category";
-  const title = str(fd, "title") ?? (category === "aadhaar" ? "Aadhaar card" : null); // fixed parts need no title
+  const title = str(fd, "title") ?? ({ aadhaar: "Aadhaar card", pan: "PAN card" } as Record<string, string>)[category]; // fixed parts need no title
   if (!title || title.length > 200) return "Give the document a title (up to 200 characters)";
   if (!(file instanceof File) || !file.size) return "Choose a file";
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";

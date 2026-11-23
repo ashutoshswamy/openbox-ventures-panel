@@ -83,6 +83,7 @@ export function DetailsFields({ fullName, alias, p, profile = true, bank = false
         <label className="field">Account number {req}<input name="account_number" required inputMode="numeric" className={input} /></label>
         <label className="field">IFSC {req}<input name="ifsc" required placeholder="HDFC0001234" className={`${input} uppercase`} /></label>
         <label className="field">PAN<input name="pan" placeholder="ABCDE1234F" className={`${input} uppercase`} /></label>
+        <label className="field">Aadhaar number<input name="aadhaar" inputMode="numeric" maxLength={12} placeholder="12 digits" className={input} /></label>
         <label className="field">UAN (optional)<input name="uan" inputMode="numeric" className={input} /></label>
               </Section>
       )}
