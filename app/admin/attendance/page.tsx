@@ -46,7 +46,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       if ((data?.length ?? 0) < 1000) return all;
     }
   };
-  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }, { data: regDone }, monthAtt, { data: monthLeaves }] = await Promise.all([
+  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs, error: regsError }, { data: regDone }, monthAtt, { data: monthLeaves }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, timezone").order("name"),
     sb.from("attendance_report").select("*").in("date", date === today ? [date, shiftDay(date, -1)] : [date]),
@@ -112,6 +112,8 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
           </select>
         )}
       </AutoForm>
+
+      {regsError && <p className="text-sm text-red" role="alert">Couldn't load regularization requests: {regsError.message}</p>}
 
       {!!regs?.length && (
         <section className="card">

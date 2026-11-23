@@ -605,7 +605,7 @@ begin
   if e.id is null then raise exception 'Not an active employee'; end if;
   if my_role() = 'admin' then raise exception 'Admins don''t use attendance or leave'; end if;
   if p_date > my_today() then raise exception 'Can''t regularize a future date'; end if;
-  if p_out <= p_in then raise exception 'Check-out must be after check-in'; end if;
+  if p_out = p_in then raise exception 'Check-out must differ from check-in'; end if;
   if coalesce(trim(p_reason), '') = '' then raise exception 'Reason is required'; end if;
   perform 1 from employees where id = e.id for update; -- serialize the monthly count
   if (select count(*) from regularizations
@@ -615,7 +615,8 @@ begin
   end if;
   tz := coalesce((select timezone from offices where id = e.office_id), 'Asia/Kolkata');
   insert into regularizations (employee_id, date, mode, check_in_at, check_out_at, reason)
-  values (e.id, p_date, p_mode, (p_date + p_in) at time zone tz, (p_date + p_out) at time zone tz, trim(p_reason))
+  values (e.id, p_date, p_mode, (p_date + p_in) at time zone tz,
+          (p_date + p_out + case when p_out < p_in then interval '1 day' else interval '0' end) at time zone tz, trim(p_reason))
   returning * into r;
   return r;
 exception when unique_violation then
