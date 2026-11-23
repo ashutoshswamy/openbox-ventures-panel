@@ -46,12 +46,13 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
       if ((data?.length ?? 0) < 1000) return all;
     }
   };
-  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }, monthAtt, { data: monthLeaves }] = await Promise.all([
+  const [{ data: people }, { data: offices }, { data: rows }, { data: leaves }, { data: regs }, { data: regDone }, monthAtt, { data: monthLeaves }] = await Promise.all([
     emps,
     sb.from("offices").select("id, name, timezone").order("name"),
     sb.from("attendance_report").select("*").in("date", date === today ? [date, shiftDay(date, -1)] : [date]),
     sb.from("leave_requests").select("employee_id, type:leave_types(name)").eq("status", "approved").lte("start_date", date).gte("end_date", date),
     sb.from("regularizations").select("*, employee:employees!regularizations_employee_id_fkey(full_name, avatar_url, office_id)").eq("status", "pending").neq("employee_id", me.id).order("date"),
+    sb.from("regularizations").select("*, employee:employees!regularizations_employee_id_fkey(full_name, avatar_url, office_id)").neq("status", "pending").order("reviewed_at", { ascending: false }).limit(25),
     monthRows(),
     sb.from("leave_requests").select("employee_id, start_date, end_date, employee:employees!leave_requests_employee_id_fkey(office_id)").eq("status", "approved").lte("start_date", to).gte("end_date", from),
   ]);
@@ -142,6 +143,30 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
               );
             })}
           </ul>
+        </section>
+      )}
+
+      {!!regDone?.length && (
+        <section className="card overflow-x-auto">
+          <h2 className="h2"><ClockAlert /> Reviewed regularizations</h2>
+          <table className="table">
+            <thead><tr><th>Employee</th><th>Date</th><th>In - Out</th><th>Reason</th><th>Status</th><th>Note</th></tr></thead>
+            <tbody>
+              {regDone.map((r) => {
+                const tz = tzOf(r.employee?.office_id ?? null);
+                return (
+                  <tr key={r.id}>
+                    <td>{r.employee?.full_name}</td>
+                    <td>{fmtDate(r.date)}</td>
+                    <td className="tabular-nums">{fmtTime(r.check_in_at, tz)} - {fmtTime(r.check_out_at, tz)}</td>
+                    <td>{r.reason}</td>
+                    <td><span className={`badge ${r.status === "approved" ? "badge-green" : "badge-red"}`}>{r.status}</span></td>
+                    <td>{r.review_note}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </section>
       )}
 
