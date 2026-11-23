@@ -2,7 +2,7 @@ import { PhoneInput } from "@/components/phone-input";
 
 const GENDERS = ["Female", "Male", "Non-binary", "Prefer not to say"];
 const BLOOD = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-const COMPANIES = [["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"]];
+const COMPANIES = [["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"], ["entertainment", "Entertainment"]];
 
 // Title + hint on the left, fields on the right (stacked below lg).
 function Section({ title, hint, children, className = "" }: { title: string; hint: string; children: React.ReactNode; className?: string }) {

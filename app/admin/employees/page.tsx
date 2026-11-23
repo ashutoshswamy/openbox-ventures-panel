@@ -115,7 +115,7 @@ function Details({ e, p }: { e: Emp; p?: Profile }) {
       <div className="field" role="radiogroup" aria-label="Company">
         <span>Company</span>
         <div className="flex flex-wrap gap-x-5 gap-y-2">
-          {[["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"]].map(([v, l]) => (
+          {[["lgoob", "LGOOB"], ["fusion", "Fusion Freights"], ["both", "Both"], ["entertainment", "Entertainment"]].map(([v, l]) => (
             <label key={v} className="check"><input type="radio" name="company" value={v} required defaultChecked={p.company === v} /> {l}</label>
           ))}
         </div>

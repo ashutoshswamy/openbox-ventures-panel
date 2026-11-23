@@ -44,7 +44,7 @@ export function parseProfile(fd: FormData): string | { name: string; alias: stri
   if (email && !MAIL.test(email)) return "Personal email doesn't look right";
 
   const company = str(fd, "company");
-  if (!company || !["lgoob", "fusion", "both"].includes(company)) return "Pick which company they work with";
+  if (!company || !["lgoob", "fusion", "both", "entertainment"].includes(company)) return "Pick which company they work with";
   const companyFields: Record<string, string | null> = { lgoob_alias: null, lgoob_email: null, fusion_alias: null, fusion_email: null };
   for (const [key, name, on] of [["lgoob", "LGOOB", company !== "fusion"], ["fusion", "Fusion Freights", company !== "lgoob"]] as const) {
     if (!on) continue;
