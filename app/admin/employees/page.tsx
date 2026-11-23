@@ -3,7 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { staffPage, type Role } from "@/lib/me";
 import { adminDb, db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
-import { Archive, Ban, ChevronDown, Download, ClipboardList, FolderLock, Hourglass, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, Upload, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
+import { Archive, Ban, ChevronDown, Download, ClipboardList, FolderLock, Hourglass, Landmark, LockOpen, MailCheck, RotateCw, Save, Search, Send, ShieldCheck, Upload, UserCheck, UserCog, UserPlus, Users, UserX } from "lucide-react";
 import { ActionForm } from "@/components/action-form";
 import { PhoneInput } from "@/components/phone-input";
 import { Avatar } from "@/components/avatar";
@@ -13,6 +13,9 @@ import { pageOf } from "@/lib/calendar";
 import { PageHeader } from "@/components/shell";
 import { PersonSelect } from "@/components/person-select";
 import { CompletionLink, CompletionLinkAll } from "@/components/completion-link";
+import { type Bank, BankForm, BankLock, BankUnlock } from "@/components/bank-form";
+import { bankUnlocked } from "@/lib/bank-unlock";
+import { allowBankEdit } from "@/app/profile/bank-actions";
 import { CATEGORIES, type Doc, DocumentList } from "@/components/documents";
 import { editPersonalDetails, inviteEmployee, resendInvite, setActive, updateEmployee, uploadDocument } from "../actions";
 
@@ -196,10 +199,11 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
   // ponytail: single page of 500 users; paginate past that.
   const linked = (emps ?? []).flatMap((e: Emp) => (e.clerk_user_id ? [e.clerk_user_id] : []));
   const ids = (emps ?? []).map((e: Emp) => e.id);
+  const unlocked = await bankUnlocked(me.id); // bank values only after password re-entry
   const [users, { data: profiles }, { data: banks }, { data: docs }] = await Promise.all([
     linked.length ? (await clerkClient()).users.getUserList({ userId: linked, limit: 500 }) : { data: [] },
     canEdit ? adminDb().from("employee_profiles").select("*").in("employee_id", ids) : { data: [] }, // server key: RLS hides profiles from HR
-    canEdit ? sb.from("employee_bank").select("employee_id").in("employee_id", ids) : { data: [] }, // RLS: admin + HR of the office
+    canEdit ? sb.from("employee_bank").select<string, Bank & { employee_id: string }>(unlocked ? "*" : "employee_id, employee_can_edit, edit_requested_at").in("employee_id", ids) : { data: [] as (Bank & { employee_id: string })[] }, // RLS: admin + HR of the office
     canEdit ? sb.from("employee_documents").select("id, employee_id, category, title, expires_on, created_at").in("employee_id", ids).order("created_at", { ascending: false }) : { data: [] },
   ]);
   const hasBank = (id: string) => !!banks?.some((b) => b.employee_id === id);
@@ -342,6 +346,27 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                           <Details e={e} p={profileOf(e.id)} />
                         </section>
                       )}
+                      {r !== "admin" && e.id !== me.id && (() => {
+                        const bank = banks?.find((b) => b.employee_id === e.id);
+                        return (
+                          <section className="rounded-xl border border-line bg-surface p-4 space-y-4">
+                            <h3 className="h2"><Landmark /> Bank details</h3>
+                            {bank?.edit_requested_at && <span className="badge badge-amber">Bank edit requested</span>}
+                            {!bank && <CompletionLink id={e.id} missing="bank details" />}
+                            {bank && (bank.employee_can_edit ? (
+                              <p className="text-sm text-muted"><LockOpen className="mr-1 inline size-3.5" />Unlocked: {e.full_name.split(" ")[0]} can change their bank details once.</p>
+                            ) : (
+                              <ActionForm action={allowBankEdit} success="Unlocked" className="flex flex-wrap items-center gap-3">
+                                <input type="hidden" name="employee_id" value={e.id} />
+                                <button className={`btn ${bank.edit_requested_at ? "btn-primary" : ""}`}><LockOpen /> Allow employee to edit</button>
+                                {bank.edit_requested_at && <span className="text-sm text-muted">Requested {fmtDate(bank.edit_requested_at.slice(0, 10))}</span>}
+                              </ActionForm>
+                            ))}
+                            {bank && !unlocked ? <BankUnlock /> : <BankForm bank={bank} employeeId={e.id} />}
+                            {bank && unlocked && <BankLock />}
+                          </section>
+                        );
+                      })()}
                       {(isAdmin || e.id !== me.id) && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="h2"><FolderLock /> Documents</h3>

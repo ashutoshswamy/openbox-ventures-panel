@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronDown, FilePlus2, FileText, IndianRupee, LockOpen, Plus, Trash2, Wallet } from "lucide-react";
+import { ChevronDown, FilePlus2, FileText, IndianRupee, Plus, Trash2, Wallet } from "lucide-react";
 import { staffPage } from "@/lib/me";
 import { db } from "@/lib/supabase";
 import { fmtDate, todayIn } from "@/lib/util";
 import { inr, monthLabel, STATUS_TONE } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
-import { CompletionLink } from "@/components/completion-link";
-import { type Bank, BankForm, BankLock, BankUnlock, maskAcct } from "@/components/bank-form";
 import { Secret } from "@/components/secret";
-import { bankUnlocked } from "@/lib/bank-unlock";
 import { PageHeader } from "@/components/shell";
 import { SalaryCalculator } from "@/components/salary-calculator";
 import { addSalary, clearSalaries, createRun } from "./actions";
-import { allowBankEdit } from "@/app/profile/bank-actions";
 
 export const metadata = { title: "Payroll" };
 
@@ -23,21 +19,19 @@ export default async function Payroll() {
   const admin = me.role === "admin";
   const sb = db();
   const today = todayIn();
-  const unlocked = await bankUnlocked(me.id); // bank values only after password re-entry
 
   let emps = sb.from("employees").select("id, full_name, designation, office_id").eq("active", true).or("role.is.null,role.neq.admin").neq("id", me.id).order("full_name");
   if (!admin && me.office_id) emps = emps.eq("office_id", me.office_id);
-  const [{ data: runs }, { data: offices }, { data: people }, { data: sals }, { data: banks }] = await Promise.all([
+  const [{ data: runs }, { data: offices }, { data: people }, { data: sals }] = await Promise.all([
     sb.from("payroll_runs").select("id, month, status, office:offices(name)").order("month", { ascending: false }),
     sb.from("offices").select("id, name").order("name"),
     emps,
     sb.from("employee_salaries").select("*").order("effective_from"),
-    sb.from("employee_bank").select<string, Bank & { employee_id: string }>(unlocked ? "*" : "employee_id, employee_can_edit, edit_requested_at"),
   ]);
 
   return (
     <>
-      <PageHeader title="Payroll" sub="Salaries, increments, bank details and monthly salary sheets"><SalaryCalculator month={today.slice(0, 7)} /></PageHeader>
+      <PageHeader title="Payroll" sub="Salaries, increments and monthly salary sheets"><SalaryCalculator month={today.slice(0, 7)} /></PageHeader>
       <div className="space-y-6">
         <section className="card">
           <h2 className="h2"><Wallet /> Salary sheets</h2>
@@ -77,7 +71,6 @@ export default async function Payroll() {
               {people.map((p) => {
                 const hist = sals?.filter((s) => s.employee_id === p.id) ?? [];
                 const cur = [...hist].reverse().find((s) => s.effective_from <= today);
-                const bank = banks?.find((b) => b.employee_id === p.id);
                 return (
                   <li key={p.id} className="py-3">
                     <details className="group">
@@ -89,11 +82,9 @@ export default async function Payroll() {
                         <div className="text-right text-sm tabular-nums">
                           {cur ? <><div className="font-medium"><Secret label="salary">{inr(Number(cur.annual_ctc))}</Secret> / yr</div><div className="text-muted">since {fmtDate(cur.effective_from)}</div></> : <span className="text-muted">No salary</span>}
                         </div>
-                        {bank?.edit_requested_at && <span className="badge badge-amber">Bank edit requested</span>}
-                        <div className="w-28 text-sm text-muted tabular-nums">{!bank ? "No bank details" : unlocked ? maskAcct(bank.account_number) : "Bank on file"}</div>
                         <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
                       </summary>
-                      <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                      <div className="mt-4">
                         <div className="space-y-4">
                           {!!hist.length && (
                             <Secret block label="salary history">
@@ -129,20 +120,6 @@ export default async function Payroll() {
                               <button className="btn btn-ghost btn-danger"><Trash2 /> Remove salary history</button>
                             </ActionForm>
                           )}
-                        </div>
-                        <div className="space-y-4">
-                          {!bank && <CompletionLink id={p.id} missing="bank details" />}
-                          {bank && (bank.employee_can_edit ? (
-                            <p className="text-sm text-muted"><LockOpen className="mr-1 inline size-3.5" />Unlocked: {p.full_name.split(" ")[0]} can change their bank details once.</p>
-                          ) : (
-                            <ActionForm action={allowBankEdit} success="Unlocked" className="flex flex-wrap items-center gap-3">
-                              <input type="hidden" name="employee_id" value={p.id} />
-                              <button className={`btn ${bank.edit_requested_at ? "btn-primary" : ""}`}><LockOpen /> Allow employee to edit</button>
-                              {bank.edit_requested_at && <span className="text-sm text-muted">Requested {fmtDate(bank.edit_requested_at.slice(0, 10))}</span>}
-                            </ActionForm>
-                          ))}
-                          {bank && !unlocked ? <BankUnlock /> : <BankForm bank={bank} employeeId={p.id} />}
-                          {bank && unlocked && <BankLock />}
                         </div>
                       </div>
                     </details>
