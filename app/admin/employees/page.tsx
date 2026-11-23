@@ -370,16 +370,16 @@ export default async function Employees({ searchParams }: PageProps<"/admin/empl
                       {(isAdmin || e.id !== me.id) && (
                         <section className="rounded-xl border border-line bg-surface p-4">
                           <h3 className="h2"><FolderLock /> Documents</h3>
-                          {([["aadhaar", "Aadhaar card"], ["pan", "PAN card"], ["other", "Other documents"]] as const).map(([cat, label]) => (
+                          {([["aadhaar", "Aadhaar card"], ["other", "Other documents"]] as const).map(([cat, label]) => (
                             <div key={cat} className="mt-4 border-t border-line pt-4 first:mt-0 first:border-0 first:pt-0">
                               <h4 className="mb-2 font-medium">{label}</h4>
-                              <DocumentList docs={docsOf(e.id).filter((d) => cat === "other" ? d.category !== "aadhaar" && d.category !== "pan" : d.category === cat)} canDelete />
+                              <DocumentList docs={docsOf(e.id).filter((d) => cat === "other" ? d.category !== "aadhaar" : d.category === cat)} canDelete />
                               <ActionForm action={uploadDocument} className="mt-3 grid gap-3 sm:grid-cols-2">
                                 <input type="hidden" name="employee_id" value={e.id} />
                                 {cat === "other" ? <>
                                   <label className="field">Title<input name="title" required maxLength={200} placeholder="e.g. Offer letter 2026" className="input" /></label>
                                   <label className="field">Category
-                                    <select name="category" required defaultValue="other" className="input">{CATEGORIES.filter(([k]) => k !== "aadhaar" && k !== "pan").map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+                                    <select name="category" required defaultValue="other" className="input">{CATEGORIES.filter(([k]) => k !== "aadhaar").map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                                   </label>
                                 </> : <input type="hidden" name="category" value={cat} />}
                                 <label className="field">File (PDF, image or Word, up to 4 MB)<input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.doc,.docx" className="input" /></label>

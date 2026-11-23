@@ -13,7 +13,7 @@ const bucket = (n: number, edges: number[]) => { // [20,25,30,35] → "< 20", "2
   return i === edges.length - 1 ? `${edges[i]}+` : `${edges[i]} - ${edges[i + 1] - 1}`;
 };
 
-export async function GET(req: Request) {
+export async function GET() {
   const me = await requireStaff();
   if (me.role !== "admin" && me.role !== "hr") return new Response("Forbidden", { status: 403 });
   const today = todayIn();

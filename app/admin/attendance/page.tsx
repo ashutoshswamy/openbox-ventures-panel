@@ -113,7 +113,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
         )}
       </AutoForm>
 
-      {regsError && <p className="text-sm text-red" role="alert">Couldn't load regularization requests: {regsError.message}</p>}
+      {regsError && <p className="text-sm text-red" role="alert">Couldn&apos;t load regularization requests: {regsError.message}</p>}
 
       {!!regs?.length && (
         <section className="card">
