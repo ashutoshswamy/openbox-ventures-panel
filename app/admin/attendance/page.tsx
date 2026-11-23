@@ -187,7 +187,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
               const l = leaveOf(p.id);
               const tz = tzOf(p.office_id);
               return (
-                <tr key={p.id}>
+                <tr key={p.id} className="[&>td]:align-top">
                   <td><span className="flex items-center gap-2.5 font-medium"><Avatar name={p.full_name} src={p.avatar_url} size="size-8 text-xs" userId={p.id} /> {p.full_name}</span></td>
                   <td>
                     <span className="flex flex-wrap gap-1">
@@ -203,7 +203,7 @@ export default async function AdminAttendance({ searchParams }: PageProps<"/admi
                   <td className="tabular-nums">{r?.hours ?? "-"}</td>
                   <td className="text-right">
                     {p.id !== me.id && (
-                      <details className="group inline-block text-left">
+                      <details className="group inline-flex flex-col items-end text-left">
                         <summary className="btn btn-ghost btn-icon cursor-pointer" title={r ? "Edit entry" : "Add entry"}>{r ? <Pencil /> : <Plus />}</summary>
                         <div className="mt-2 w-[26rem] max-w-[80vw] space-y-3 rounded-xl border border-line bg-surface-2/50 p-4">
                           <ActionForm action={saveAttendance} keep className="flex flex-wrap gap-2">
