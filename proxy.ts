@@ -24,6 +24,7 @@ export default clerkMiddleware({
 export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/__clerk/(.*)", // Clerk JS proxy; .js suffix is excluded above
     "/(api|trpc)(.*)",
   ],
 };
